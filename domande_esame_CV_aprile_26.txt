@@ -1,0 +1,126 @@
+ViT
+CLIP
+AlexNet
+Resnet
+Forward pass?
+
+DOMANDA 1 (Biliardi):
+Mechanism of 2D convolutional layer (non dimentichi un operazione? -> il round) 
+	- Which are the input and kernel shapes (in terms of tensor)?
+	- Impariamo dei bias nei layer convolutivi? (1 per ogni kernel (oC))
+	
+Non sapeva le basi, grandissima difficoltà. Baraldi un po' innervorsito da questa cosa, gli hai dato 23 per PURA grazia divina.
+
+
+DOMANDA 2 (Davoli):
+Definition of Attention operator
+	- mandatory numbers of query and keys?
+		. recall of cross attention in transformer paper
+	- dilated convolution? (risposta: enlarge receiptive field without increasing number of params)
+		. grouping?
+		
+Lui sicuro, risposte puntuali. 30.
+		
+DOMANDA 3 ():
+	- transpose convolution (semantic segmentation)
+		. older approach which brought to transpose (bed of nails, maxpooling) + vantaggi della transpose convolution
+	- DeT:
+		. how do you train queries? 
+	
+	
+
+DOMANDE PRE MEDIEVIL
+
+Domande CV
+
+22 / 12 / 2025
+
+- Draw a gaussian kernel 
+- input, kernel, bias and output shape of a 2D convolutional layer in a CNN (remember the batch size)
+- CLIP
+- minimum value of the cosine similarity (-1)
+- name of the loss in CLIP (contrastive loss)
+    - how it is implemented 
+- attention 
+- ResNet and its innovation (residual connection)
+    - draw the architecture
+    - how can I downsample (stride = 2)
+    - draw a version of it that does downsampling 
+    - usual kernel shape in a ResNet (3x3)
+
+
+- architecture of Inception Net
+	
+￼
+
+- 3D convolutional layer with shapes (remember pseudo 3D network)
+- can you do object detection with attention? (DETR)
+    - how do you implement the object queries? (learnable through fully connected layers)
+    - do you have constraints on the number of object queries? (correlated to the maximum number of detection that can be done in an image)
+- difference between self attention and cross attention 
+- how does a bilateral filter works 
+- definition of an edge (point in which there is an high variation of luminosity)
+    - how do you compute it practically? (masked, sobel (the formula gives the magnitude of the gradient))
+- how do you do object detection with a CNN? (RCNN)
+    - how does the Roi pooling work?
+- Roi align and difference with respect to the Roi pooling 
+- optical flow 
+    - example in which the optical flow doesn’t match the motion field, example in which they are not equal (barber poll)
+
+
+
+16 / 1 / 2026
+
+
+- draw a convolutional kernel 
+- gaussian kernel 
+	0 1 0
+	1 2 1
+	0 1 0 
+- input, output, kernel shape of the convolution 
+
+- 3D convolutional kernel input, output, kernel shape 
+- shape of the kernel of the pseudo conv 
+- self-attention (with shapes)
+
+- how does the optical flow works?
+- difference between sparse and dense optical flow methods (prefer the dense optical flow to put it as input of a CNN or whatever)
+- cross-attention
+- final length of the output of the cross-attention layer (the output has the same shape as the input)
+- ViT
+- compare a ViT with a CNN (advantages and disadvantages) 
+    - CNN: local - Trasnformer: global 
+    - CNN: downsample - Transformer: isotropic 
+    - CNN: less data - Transformer: more data 
+    - CNN: high inductive bias - Transformer: low 
+- object detection with Transformers (DETR)
+
+- which metrics or measures you employ to compute the similarity in an image retrieval system 
+- formula for the norm 
+- what’s an image histogram
+- residual block
+- SIFT descriptor
+
+- inception block in GoogleNet
+- edge detection (first derivative, sobel kernel, kenny)
+- single difference and double difference in motion 
+- example in which the double difference perform better than the single difference 
+- what’s the optical flow 
+- RoI pooling layers
+
+- how does CLIP work
+- how to encode images? = what to use if we want a good descriptor for images? = SOTA encoders for images? (CNN, ViT)
+- attention 
+
+- CLIP
+    - image encoder (ViT, modified ResNet)
+    - text encoder (transformer encoder)
+- norm L2
+	x = [1, 0, 2]
+	L2-normed vector = [1/√5, 0, 2/√5] 
+- cosine similarity 
+- training procedure of CLIP 
+- loss function of CLIP (there’s one for the images and one for the text, choose one of them, and show)
+    - how do you compute the cross-entropy loss? (InfoNCE) 
+- RoI Align 
+- RoI Align and Roi Pooling convert things that have a variable shape into things that have a constant shape, explain this
