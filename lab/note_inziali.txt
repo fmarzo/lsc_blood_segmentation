@@ -1,6 +1,17 @@
+18/06/26 
+PRIMO INCONTRO CON LIVIA 
+
 - capire come scaricare il dataset Hemoset (l'abbiamo scaricato da https://arclab-hemoset.github.io?utm_source=chatgpt.com, ma è quello?)
 - encoder + decoder (teoria)
 - transformers (teoria)
 - lettura su come funziona la U Net e U Net++ (teoria)
 - modello: esistono libreria? (pensiamo a skitlearn + offgas nel spiegare questa cosa)
 - git: come gestione cluster + locale? 
+
+
+21/06/26
+
+- setup git su cluster (home) + clone
+- download dataset su work
+- lancio job con script python "welcome AI image lab" (da home)
+- creato directory logs (per output) + permessi per entrambi (su work)
