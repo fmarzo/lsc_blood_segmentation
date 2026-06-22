@@ -51,7 +51,7 @@ Domande CV
 
 - architecture of Inception Net
 	
-￼
+ 
 
 - 3D convolutional layer with shapes (remember pseudo 3D network)
 - can you do object detection with attention? (DETR)
@@ -124,3 +124,90 @@ Domande CV
     - how do you compute the cross-entropy loss? (InfoNCE) 
 - RoI Align 
 - RoI Align and Roi Pooling convert things that have a variable shape into things that have a constant shape, explain this
+
+
+22/06/2026
+
+Progetti
+
+Progetto 1: Face Recognition (Vit vs Cnn based models)
+- analisi del dataset (dimension, class imbalance...)
+- breve descrizione dei modelli 
+- analisi delle performance
+
+- i ragazzi hanno usato due approcci diversi per due modelli che hanno trainato. es per il primo modello finetuning per ogni livello mentre nel secondo hanno i primi livelli frozen e hanno finetunato sui restanti. Non hanno saputo spiegare perchè hanno fatto questo. Hanno comparato due modelli diversi con due protocolli diversi. Potevano volendo applicare lo stesso approccio per entrambi i modelli. 
+
+- per i modelli ha diviso il dataset in 3 parti (train validation training), il problema è che ha fatto questo per tutto i modelli. Ma non ha la certezza che gli item estratti per il training siano gli stessi usati per tutti i modelli. Senza questa certezza potrebbero aver comparo performance di modelli trainati su dataset di train con item diversi.
+
+- come si scelgono il numero di epoch?guardando la validation loss e confrontando i risultati con numero di epoch diverse. Guardando la loss decido se aumentare o no. Troppe causano overfitting. (epoch: ciclo completo dell'algoritmo di training, quante volte aggiorno i paramentri completamente) 
+
+Progetto2: image generation (LoRa vs Textual Inversion)
+- ha mostrato un esempio (es delle immagini di gatti generate dai due modelli) ma non ha mostrato una valutazione molto tecnica.
+
+Progetto3: video analysis (detecting anda tracking) (straniero)
+- hanno fatto anche un software che usa il loro modello e lo hanno fatto vedere a lezione: tracking di giocatori. Anche loro non hanno mostrato una valutazione tecnica ma solo qualitativa. 
+- hanno usato il modello solo su un dataset su giocatori di basket e non hanno comparato con altri.
+- l'approccio deve essere scientifico, non solo fare le cose ma anche valutare rispetto anche approcci già esistenti...altri dataset...
+
+Progetto4:LLaVa vs Qwen (straniero)
+- queste non sapevano quello che avevano fatto (spagnole)
+
+Progetto5: Face Recognition (straniero)
+- non hanno specificato lo splitting del dataset e i modelli devono essere comparati sugli stessi dati
+- hanno trainato solo una resnet troppo poco. Dicono che Livia abbia dato l'ok. (è sufficiente ma non è comparabile con i progetti dello scorso anno).
+
+
+
+Domande
+
+- RESNET
+    - what issues can solve a resnet? vanishing gradient
+    - if i want downsample in a resnet, how? using a stride > 1. 
+    - if i do downsample how i manage the sum with the residual connection? adding a conv in the residual connection with the same stride
+
+- how does compute grouping in a conv layer?
+
+- 3d conv and differenze with 2d conv (non sono state chieste le formule degli shape)
+
+- pseudo 3d conv residual network: from 3x3x3 kernel to a 1x3x3 + 3x1x1
+
+- what a tracking does? (straniero)
+
+- difference between detection by tracking and tracking by detection (straniero)
+
+- difference with object detector (it gives coordinates of the bounding box). The tracker follow a detection over time. (straniero)   
+
+- what is SAM (straniero)
+
+- Homography transformation? what geometrical trasformation am i applyng? (a perspective trasformation) (straniero)
+
+- transpose convolution (straniero)
+
+- Faster R-CNN and comparing with R-CNN, Fast R-CNN... (straniero)
+
+- Attention (straniero)
+
+- ViT: (straniero)
+    - difference with CNN
+
+- bilateral filters: it is a non linear filters...(straniero)
+    - what it does
+ 
+- transpose convolution (straniero)
+
+- Attention mechanism: formula...(straniero)
+
+- 3D conv (straniero)
+
+- what the effect of the stride in the normal CNN vs the effect in the transpose conv (straniero) (fatta anche a un ragazzo dello scorso anno)
+
+- how i train clip and what is clip loss? (fatta a un ragazzo dello scorso anno)
+    - the final matrix that contains the cosine simililarity (computed between the image and text embeddings, we have a vector for each image and text and not a number) 
+    - how do i compute the cosine sim?formula
+
+- image processing: adaptive thresholding (fatta a un ragazzo dello scorso anno)
+
+- components of ViT and attention formula (softmax(Q*KT)/sqrt(dk))
+    - Q = X*wq, X is a vector or a matrix?(a matrix)
+    - what is the softmax in the formula 
+    - what links the output of the encoder as a input for the decoder?the cross attention
