@@ -160,18 +160,18 @@ Progetto5: Face Recognition (straniero)
 
 Domande
 
-- RESNET
+- resnet
     - what issues can solve a resnet? vanishing gradient
     - if i want downsample in a resnet, how? using a stride > 1. 
     - if i do downsample how i manage the sum with the residual connection? adding a conv in the residual connection with the same stride
 
-- how does compute grouping in a conv layer?
+- how compute grouping in a conv layer?
 
-- 3d conv and differenze with 2d conv (non sono state chieste le formule degli shape)
+- 3d conv and difference with 2d conv (non sono state chieste le formule degli shape)
 
 - pseudo 3d conv residual network: from 3x3x3 kernel to a 1x3x3 + 3x1x1
 
-- what a tracking does? (straniero)
+- what a tracker does? (straniero)
 
 - difference between detection by tracking and tracking by detection (straniero)
 
