@@ -1,44 +1,45 @@
+"""
+file: create_dataset.py
+
+brief:  this script it's used to create a .csv to label each frame of the dataset with a label (pig1, pig2, .. pig n)
+        in this way we can choose whatever frames to put in the different set (train, validation or test). This will be launched
+        ONE TIME to produce the entire .csv for all frames. Then, another script will read the file and create the 3 set.
+"""
 import glob
 import os
+import config_split
+import csv
 
-dataset_root = '/work/cvcs2026/latent_space_cowboys/datasets/HemoSet'
+os.makedirs(config_split.OUT_DIR_SPLIT, exist_ok=True)
 
-CSV_FILE_NAME = 'splits/dataset.csv'
-
-os.makedirs('splits', exist_ok=True)
-
-with open(CSV_FILE_NAME, 'w') as f:
+with open(config_split.CSV_FILE_NAME, 'w') as f:
     f.write('images,labels,video_id\n')
 
-    for pig_number in range(1, 12):
+    writer = csv.writer(f)
+    for pig_number in range(1, config_split.NUM_DATASET_FOLDERS + 1):
         pig_name = f'pig{pig_number}'
 
-        folder_dir_images = f'{dataset_root}/{pig_name}/imgs'
-        folder_dir_labels = f'{dataset_root}/{pig_name}/labels'
+        folder_dir_images = f'{config_split.DATASET_ROOT}/{pig_name}/imgs'
+        folder_dir_labels = f'{config_split.DATASET_ROOT}/{pig_name}/labels'
 
-        print(f'Leggo {pig_name}')
+        print(f'Reading {pig_name}')
 
         for image_path in sorted(glob.iglob(f'{folder_dir_images}/*')):
 
-            if not image_path.endswith('.png'):
+            if not image_path.endswith(config_split.IMG_EXT):
                 continue
 
             image_filename = os.path.basename(image_path)
             name_without_extension = os.path.splitext(image_filename)[0]
 
-            label_filename = f'{name_without_extension}_mask.png'
+            label_filename = f'{name_without_extension}_mask{config_split.IMG_EXT}'
             label_path = f'{folder_dir_labels}/{label_filename}'
 
             if not os.path.exists(label_path):
-                print(f'Label mancante per: {image_path}')
-                print(f'Cercavo: {label_path}')
+                print(f'Missing label for: {image_path}')
+                print(f'Looking for: {label_path}')
                 continue
+                        
+            writer.writerow([image_path, label_path, pig_name])
 
-            f.write(image_path)
-            f.write(',')
-            f.write(label_path)
-            f.write(',')
-            f.write(pig_name)
-            f.write('\n')
-
-print(f'Creato file CSV: {CSV_FILE_NAME}')
+print(f'Created CSV file: {config_split.CSV_FILE_NAME}')
