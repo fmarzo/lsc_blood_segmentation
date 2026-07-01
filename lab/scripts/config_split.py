@@ -1,8 +1,9 @@
 import os
-
+# getting the actual path and pointing to the final one
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, '..'))
 
+#configuration contants
 DATASET_ROOT = '/work/cvcs2026/latent_space_cowboys/datasets/HemoSet'
 OUT_DIR_SPLIT = os.path.join(PROJECT_ROOT, 'splits')
 CSV_FILE_NAME = os.path.join(OUT_DIR_SPLIT, 'full_labeled_dataset.csv')
