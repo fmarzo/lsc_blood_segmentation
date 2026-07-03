@@ -179,7 +179,7 @@ Domande
 
 - what is SAM (straniero)
 
-- Homography transformation? what geometrical trasformation am i applyng? (a perspective trasformation) (straniero)
+- Homography transformation? what geometrical trasformation am i applyng? (a 2D perspective trasformation) (straniero)
 
 - transpose convolution (straniero)
 
@@ -201,7 +201,7 @@ Domande
 
 - what the effect of the stride in the normal CNN vs the effect in the transpose conv (straniero) (fatta anche a un ragazzo dello scorso anno)
 
-- how i train clip and what is clip loss? (fatta a un ragazzo dello scorso anno)
+- how i train clip and which is clip loss? (fatta a un ragazzo dello scorso anno)
     - the final matrix that contains the cosine simililarity (computed between the image and text embeddings, we have a vector for each image and text and not a number) 
     - how do i compute the cosine sim?formula
 
