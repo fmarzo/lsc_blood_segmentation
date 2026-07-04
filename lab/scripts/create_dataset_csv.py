@@ -10,13 +10,14 @@ import os
 import config_split
 import csv
 
+counter_value = 0
 os.makedirs(config_split.OUT_DIR_SPLIT, exist_ok=True)
 
 with open(config_split.CSV_FILE_NAME, 'w') as f:
-    
-    f.write(f"{config_split.IMG_STRING},{config_split.LABEL_STRING},{config_split.VIDEOID_STRING}\n")
-
     writer = csv.writer(f)
+    
+    writer.writerow(f"{config_split.IMG_STRING},{config_split.LABEL_STRING},{config_split.VIDEOID_STRING}\n")
+
     for pig_number in range(1, config_split.NUM_DATASET_FOLDERS + 1):
         pig_name = f'pig{pig_number}'
 
@@ -42,5 +43,6 @@ with open(config_split.CSV_FILE_NAME, 'w') as f:
                 continue
                         
             writer.writerow([image_path, label_path, pig_name])
-
+            counter_value += 1
 print(f'Created CSV file: {config_split.CSV_FILE_NAME}')
+print(f'Rows: {counter_value}')

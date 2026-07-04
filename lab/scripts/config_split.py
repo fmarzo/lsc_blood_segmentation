@@ -22,11 +22,10 @@ PIG4    = "pig4"
 PIG5    = "pig5"
 PIG6    = "pig6"
 PIG7    = "pig7"
-PIG8    = "pig8"
 PIG9    = "pig9"
 PIG10   = "pig10" 
 PIG11   = "pig11"
 
-TRAIN_VIDEO_ID = [PIG1, PIG3, PIG4, PIG6, PIG7, PIG8]
+TRAIN_VIDEO_ID = [PIG1, PIG3, PIG4, PIG6, PIG7]
 VAL_VIDEO_ID =   [PIG2, PIG9, PIG11]
 TEST_VIDEO_ID =  [PIG5, PIG10]
