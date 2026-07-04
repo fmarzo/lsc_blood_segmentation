@@ -13,7 +13,8 @@ import csv
 os.makedirs(config_split.OUT_DIR_SPLIT, exist_ok=True)
 
 with open(config_split.CSV_FILE_NAME, 'w') as f:
-    f.write('images,labels,video_id\n')
+    
+    f.write(f"{config_split.IMG_STRING},{config_split.LABEL_STRING},{config_split.VIDEOID_STRING}\n")
 
     writer = csv.writer(f)
     for pig_number in range(1, config_split.NUM_DATASET_FOLDERS + 1):
