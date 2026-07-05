@@ -1,5 +1,4 @@
-i,m,a,g,e,s,",",l,a,b,e,l,s,",",v,i,d,e,o,_,i,d,"
-"
+images,labels,video_id
 /work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/imgs/000000.png,/work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/labels/000000_mask.png,pig1
 /work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/imgs/000030.png,/work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/labels/000030_mask.png,pig1
 /work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/imgs/000060.png,/work/cvcs2026/latent_space_cowboys/datasets/HemoSet/pig1/labels/000060_mask.png,pig1
