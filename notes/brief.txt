@@ -20,3 +20,4 @@ PRIMO INCONTRO CON LIVIA
 - controllato l'integrità del dataset (immagini e mask hanno stessa dimensione)
 - creato transformer per la trasformazione di png -> np.array -> torch.tensor che serve per il train
 - creato la classe Dataset per preprocessing: restituisce due tensori (img + mask) pronti per la GPU data l'indice della riga
+- refactoring: ora tutti gli eseguibili sono in script, sotto src ci sono le i file di user: configurazioni e classi
