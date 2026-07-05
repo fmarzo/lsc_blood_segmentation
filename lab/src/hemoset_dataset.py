@@ -1,3 +1,12 @@
+"""
+file: hemoset_dataset.py
+
+brief:  this class inherit torch Dataset interface to implement 3 methods to return 
+        a pair of tensors ready for GPU-train.
+        Accepts as parameters the file path and the tranformers object to use with the 
+        file from the paths stored in the csv.
+"""
+
 import os
 import pandas as pd
 from torchvision.io import decode_image

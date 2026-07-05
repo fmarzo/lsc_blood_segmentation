@@ -1,3 +1,12 @@
+"""
+file: train.py
+
+brief:  this script acts as "main" entry for python calls
+
+        Creates trasnformers to convert both image and mask from pgn to torch.tensor
+        Use of mean and std to normalize data comes off knowns ResNet pre trained values
+        
+"""
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
