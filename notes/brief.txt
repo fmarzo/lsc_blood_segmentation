@@ -8,10 +8,15 @@ PRIMO INCONTRO CON LIVIA
 - modello: esistono libreria? (pensiamo a skitlearn + offgas nel spiegare questa cosa)
 - git: come gestione cluster + locale? 
 
-
 21/06/26
 
 - setup git su cluster (home) + clone
 - download dataset su work
 - lancio job con script python "welcome AI image lab" (da home)
 - creato directory logs (per output) + permessi per entrambi (su work)
+
+05/07/26
+
+- controllato l'integrità del dataset (immagini e mask hanno stessa dimensione)
+- creato transformer per la trasformazione di png -> np.array -> torch.tensor che serve per il train
+- creato la classe Dataset per preprocessing: restituisce due tensori (img + mask) pronti per la GPU data l'indice della riga

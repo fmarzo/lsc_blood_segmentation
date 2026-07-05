@@ -13,16 +13,17 @@ class CustomImageDataset(Dataset):
     def __len__(self):
         return len(self.csv_dirs)
 
-    def __getitem__(self, idx-):
-        img_path = self.csv_dirs.iloc[idx, 0]
+    def __getitem__(self, row):
+        img_path = self.csv_dirs.iloc[row, 0]
         image = Image.open(img_path)
         
-        mask_path = self.csv_dirs.iloc[idx, 1]
+        mask_path = self.csv_dirs.iloc[row, 1]
         mask = Image.open(mask_path)
 
         if self.transform_img:
             image = self.transform_img(image)
         if self.transform_mask:
             mask = self.transform_mask(mask)
+            # NB: loss will be Cross Entropy, so conversion to long data might be the case for this tensor  
 
         return image, mask
