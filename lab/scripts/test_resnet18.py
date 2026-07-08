@@ -34,7 +34,7 @@ import torch
 
 #--------------------------------------------------------------------------------
 
-#TEST STEM
+#TEST RESNET18 (Stem+Layer)
 
 #esempio: ridimensiona l'input prima di mandarlo al residual block, ouput atteso  1x64x56x56
 
@@ -42,9 +42,13 @@ x = torch.rand(1, 3, 224, 224)
 
 model = ResNet18(
     in_channels=3,
-    out_channels=64
+    out_channels=64,
+    num_classes=10
 )
 
 out = model(x)
 
 print(out.shape)
+
+#----------------------------------------------------------------------------------
+
