@@ -6,7 +6,12 @@ PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, '..'))
 #configuration contants
 DATASET_ROOT = '/work/cvcs2026/latent_space_cowboys/datasets/HemoSet'
 OUT_DIR_SPLIT = os.path.join(PROJECT_ROOT, 'splits')
-CSV_FILE_NAME = os.path.join(OUT_DIR_SPLIT, 'full_labeled_dataset.csv')
+CSV_FILE_PATH = os.path.join(OUT_DIR_SPLIT, 'full_labeled_dataset.csv')
+CSV_TRAIN_PATH = os.path.join(OUT_DIR_SPLIT, 'train.csv')
+CSV_VALID_PATH = os.path.join(OUT_DIR_SPLIT, 'val.csv')
+CSV_TEST_PATH = os.path.join(OUT_DIR_SPLIT, 'test.csv')
+
+
 NUM_DATASET_FOLDERS = 11
 IMG_EXT = '.png'
 IMG_STRING = 'images'

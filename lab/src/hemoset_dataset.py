@@ -30,9 +30,9 @@ class CustomImageDataset(Dataset):
         mask = Image.open(mask_path)
 
         if self.transform_img:
-            image = self.transform_img(image)
+            img = self.transform_img(image)
         if self.transform_mask:
             mask = self.transform_mask(mask)
             # NB: loss will be Cross Entropy, so conversion to long data might be the case for this tensor  
 
-        return image, mask
+        return img, mask
