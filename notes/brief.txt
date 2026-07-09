@@ -21,3 +21,16 @@ PRIMO INCONTRO CON LIVIA
 - creato transformer per la trasformazione di png -> np.array -> torch.tensor che serve per il train
 - creato la classe Dataset per preprocessing: restituisce due tensori (img + mask) pronti per la GPU data l'indice della riga
 - refactoring: ora tutti gli eseguibili sono in script, sotto src ci sono le i file di user: configurazioni e classi
+
+09/07/26
+
+- implementato dataloader con batch size = 4 per ogni porzione di dataset: train, test, validation
+- chiamata a libreria di unet, usato encoder resnet 18 pretrainato su Imagenet (decoder ancora da trainare)
+- strada iniziale (B) scelta in cui u net produce un output di due channel, ogni matrice contiene logits rispettivamente di classe background e blood
+- prossimamente test di unet con strada (A) differente: uso di una loss CE binaria + DiceLoss e confrontiamo con strada B 
+- implementazione della loss per strada B:
+    - abbiamo cambiato la size delle train_mask da [B, 1, H, W] a [B, H, W] e trasformato in long, perchè la CE vuole queste mask
+    - la loss CE confronta l'ouput della forward della unet (i due channels di logits) con le mask che abbiamo trasformato
+    - abbiamo trasferito i dati alla GPU con .to("cuda")
+    - con la loss CE calcoliamo l'errore
+    - effettuiamo backprop e aggiorniamo i pesi del decoder della unet nel training loop con optimizer e backward
