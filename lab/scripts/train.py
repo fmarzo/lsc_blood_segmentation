@@ -72,11 +72,27 @@ print(ce_loss(img_1, train_mask))
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
 #testing overfit on the same batch (4): does the model learn?
-for i in range(300):
-    adam.zero_grad()
-    img_1 = unet(train_img)
-    loss = ce_loss(img_1, train_mask)
-    if i % 50 == 0:
-        print(loss)
-    loss.backward()
-    adam.step()
+# for i in range(300):
+#     adam.zero_grad()
+#     img_1 = unet(train_img)
+#     loss = ce_loss(img_1, train_mask)
+#     if i % 50 == 0:
+#         print(loss)
+#     loss.backward()
+#     adam.step()
+
+# testing all dataset for few epochs
+n_epochs = 3
+for epoch in range (n_epochs):
+    i = 0
+    for train_img, train_mask in train_hemo_DL:
+        adam.zero_grad()
+        train_mask = torch.squeeze(train_mask,1).to(torch.long).to("cuda")
+        train_img = train_img.to("cuda")
+        img_forward = unet(train_img)
+        loss = ce_loss(img_forward, train_mask)
+        if i % 50 == 0:
+            print(loss)
+        loss.backward()
+        adam.step()
+        i += 1
