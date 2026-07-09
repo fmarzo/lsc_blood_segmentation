@@ -34,3 +34,4 @@ PRIMO INCONTRO CON LIVIA
     - abbiamo trasferito i dati alla GPU con .to("cuda")
     - con la loss CE calcoliamo l'errore
     - effettuiamo backprop e aggiorniamo i pesi del decoder della unet nel training loop con optimizer e backward
+    - iterando su tutte le epoche 
