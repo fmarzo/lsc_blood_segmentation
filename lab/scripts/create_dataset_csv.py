@@ -13,7 +13,7 @@ import csv
 counter_value = 0
 os.makedirs(OUT_DIR_SPLIT, exist_ok=True)
 
-with open(CSV_FILE_NAME, 'w') as f:
+with open(CSV_FILE_PATH, 'w') as f:
     writer = csv.writer(f)
     
     f.write(f"{IMG_STRING},{LABEL_STRING},{VIDEOID_STRING}\n")
@@ -44,5 +44,5 @@ with open(CSV_FILE_NAME, 'w') as f:
                         
             writer.writerow([image_path, label_path, pig_name])
             counter_value += 1
-print(f'Created CSV file: {CSV_FILE_NAME}')
+print(f'Created CSV file: {CSV_FILE_PATH}')
 print(f'Rows: {counter_value}')

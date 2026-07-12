@@ -47,7 +47,7 @@ def check_data_integrity ():
         return True
 
 os.makedirs(OUT_DIR_SPLIT, exist_ok=True)
-df = pd.read_csv(CSV_FILE_NAME)
+df = pd.read_csv(CSV_FILE_PATH)
 
 #check if for some reason dataset it's repeated in two different sets
 if check_data_integrity():

@@ -52,26 +52,26 @@ print(f"Labels batch shape: {train_mask.size()}")
 # instantiate the unet
 
 unet = smp.Unet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=3, classes=2)
-unet.to("cuda")
+unet.to("cpu")
 
 # images 
-train_img = train_img.to("cuda")
+train_img = train_img.to("cpu")
 img_1 = unet(train_img)
 print(img_1.shape)
 
 # mask
 # uses index to avoid removal batch size of 1
-train_mask = torch.squeeze(train_mask,1).to(torch.long).to("cuda")
+train_mask = torch.squeeze(train_mask,1).to(torch.long).to("cpu")
 
 # loss_train
-ce_loss = torch.nn.CrossEntropyLoss().to("cuda")
+ce_loss = torch.nn.CrossEntropyLoss().to("cpu")
 print(ce_loss(img_1, train_mask))
 
 # optimizer Adam
 
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
-best_val_loss = float('inf')
+best_val_loss = 0
 
 # testing all dataset for few epochs
 n_epochs = 3
@@ -80,12 +80,12 @@ for epoch in range (n_epochs):
     train_loss_sum = 0
     for train_img, train_mask in train_hemo_DL:
         adam.zero_grad()
-        train_mask = torch.squeeze(train_mask,1).to(torch.long).to("cuda")
-        train_img = train_img.to("cuda")
+        train_mask = torch.squeeze(train_mask,1).to(torch.long).to("cpu")
+        train_img = train_img.to("cpu")
         img_forward = unet(train_img)
         loss_train = ce_loss(img_forward, train_mask)
         if i % 50 == 0:
-            print(f"loss_train {loss_train}")
+            print(loss_train)
         train_loss_sum += loss_train.item()
         loss_train.backward()
         adam.step()
@@ -101,12 +101,12 @@ for epoch in range (n_epochs):
         dice_sum = 0
         tp, fp, fn, tn = 0, 0, 0, 0
         for val_img, val_mask in valid_hemo_DL:
-            val_mask = torch.squeeze(val_mask,1).to(torch.long).to("cuda")
-            val_img = val_img.to("cuda")
+            val_mask = torch.squeeze(val_mask,1).to(torch.long).to("cpu")
+            val_img = val_img.to("cpu")
             img_forward = unet(val_img)
             loss_valid = ce_loss(img_forward, val_mask)
             if j % 50 == 0:
-                print(f"loss_valid {loss_valid}")
+                print(loss_valid)
             val_loss_sum += loss_valid.item()
             final_map = img_forward.argmax(dim = 1)
             batch_tp, batch_fp, batch_fn, batch_tn = smp.metrics.get_stats(final_map, val_mask, mode='multiclass', num_classes=2)
@@ -121,9 +121,10 @@ for epoch in range (n_epochs):
     avg_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
     avg_dice = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
 
-    # if avg_val_loss < best_val_loss:
-    #     best_val_loss = avg_val_loss
-    #     unet.save_pretrained(config_split.MODEL_PRETRAINED_PATH)
+    if avg_val_loss < best_val_loss or epoch == 1:
+        best_val_loss = avg_val_loss
+        unet.save_pretrained()
+
 
     unet.train()
 

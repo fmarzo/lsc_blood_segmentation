@@ -2,14 +2,16 @@ import os
 # getting the actual path and pointing to the final one
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, '..'))
+WORK_ROOT = '/work/cvcs2026/latent_space_cowboys/'
 
 #configuration contants
-DATASET_ROOT = '/work/cvcs2026/latent_space_cowboys/datasets/HemoSet'
+DATASET_ROOT = os.path.join(WORK_ROOT,'datasets/HemoSet')
 OUT_DIR_SPLIT = os.path.join(PROJECT_ROOT, 'splits')
 CSV_FILE_PATH = os.path.join(OUT_DIR_SPLIT, 'full_labeled_dataset.csv')
 CSV_TRAIN_PATH = os.path.join(OUT_DIR_SPLIT, 'train.csv')
 CSV_VALID_PATH = os.path.join(OUT_DIR_SPLIT, 'val.csv')
 CSV_TEST_PATH = os.path.join(OUT_DIR_SPLIT, 'test.csv')
+MODEL_PRETRAINED_PATH = os.path.join(WORK_ROOT,'model_pretrained')
 
 
 NUM_DATASET_FOLDERS = 11
