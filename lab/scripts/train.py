@@ -74,7 +74,7 @@ adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 best_val_loss = float('inf')
 
 # testing all dataset for few epochs
-n_epochs = 3
+n_epochs = 10
 for epoch in range (n_epochs):
     i = 0
     train_loss_sum = 0
