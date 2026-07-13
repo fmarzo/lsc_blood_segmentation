@@ -1,7 +1,10 @@
 """
-file: train.py
+file: train_unet.py
 
 brief:  this script is the main entry point for training the blood segmentation model.
+
+    The model uses a ResNet-18 encoder pretrained on ImageNet. During training, 
+    both the pretrained encoder and the U-Net decoder parameters are updated.
 
     The image transform converts each input image from PIL format to a PyTorch
     tensor and normalizes its RGB channels using the ImageNet mean and standard
@@ -36,11 +39,8 @@ brief:  this script is the main entry point for training the blood segmentation 
       correctly recover the shape and area of the blood region.
 """
 
-
-import numpy as np
 import os
 import sys
-from PIL import Image
 import torch
 import torchvision.transforms as transforms
 from src.hemoset_dataset import CustomImageDataset
@@ -155,7 +155,7 @@ unet.to("cuda")
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
 os.makedirs(
-    os.path.dirname(config_split.MODEL_PRETRAINED_PATH),
+    os.path.dirname(config_split.UNET_PRETRAINED_PATH),
     exist_ok=True
 )
 
@@ -213,7 +213,7 @@ for epoch in range (n_epochs):
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
-        torch.save(unet.state_dict(), config_split.MODEL_PRETRAINED_PATH)
+        torch.save(unet.state_dict(), config_split.UNET_PRETRAINED_PATH)
 
     unet.train()
 
