@@ -9,6 +9,7 @@ brief:  this script acts as "main" entry for python calls
 """
 
 import numpy as np
+import os
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
@@ -71,6 +72,11 @@ print(ce_loss(img_1, train_mask))
 
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
+os.makedirs(
+    os.path.dirname(config_split.MODEL_PRETRAINED_PATH),
+    exist_ok=True
+)
+
 best_val_loss = float('inf')
 
 # testing all dataset for few epochs
@@ -97,8 +103,6 @@ for epoch in range (n_epochs):
     with torch.no_grad():
         j = 0
         val_loss_sum = 0
-        iou_sum = 0
-        dice_sum = 0
         tp, fp, fn, tn = 0, 0, 0, 0
         for val_img, val_mask in valid_hemo_DL:
             val_mask = torch.squeeze(val_mask,1).to(torch.long).to("cuda")
@@ -110,10 +114,10 @@ for epoch in range (n_epochs):
             val_loss_sum += loss_valid.item()
             final_map = img_forward.argmax(dim = 1)
             batch_tp, batch_fp, batch_fn, batch_tn = smp.metrics.get_stats(final_map, val_mask, mode='multiclass', num_classes=2)
-            tp += batch_tp
-            fp += batch_fp
-            fn += batch_fn
-            tn += batch_tn
+            tp += batch_tp.sum(dim=0)
+            fp += batch_fp.sum(dim=0)
+            fn += batch_fn.sum(dim=0)
+            tn += batch_tn.sum(dim=0)
             j += 1
 
     val_batch_num = len(valid_hemo_DL)
@@ -121,9 +125,9 @@ for epoch in range (n_epochs):
     avg_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
     avg_dice = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
 
-    # if avg_val_loss < best_val_loss:
-    #     best_val_loss = avg_val_loss
-    #     unet.save_pretrained(config_split.MODEL_PRETRAINED_PATH)
+    if avg_val_loss < best_val_loss:
+        best_val_loss = avg_val_loss
+        torch.save(unet.state_dict(), config_split.MODEL_PRETRAINED_PATH)
 
     unet.train()
 

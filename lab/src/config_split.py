@@ -11,7 +11,11 @@ CSV_FILE_PATH = os.path.join(OUT_DIR_SPLIT, 'full_labeled_dataset.csv')
 CSV_TRAIN_PATH = os.path.join(OUT_DIR_SPLIT, 'train.csv')
 CSV_VALID_PATH = os.path.join(OUT_DIR_SPLIT, 'val.csv')
 CSV_TEST_PATH = os.path.join(OUT_DIR_SPLIT, 'test.csv')
-MODEL_PRETRAINED_PATH = os.path.join(WORK_ROOT,'model_pretrained')
+MODEL_PRETRAINED_PATH = os.path.join(
+    WORK_ROOT,
+    'model_pretrained',
+    'unet_resnet18_best.pth'
+)
 
 
 NUM_DATASET_FOLDERS = 11
