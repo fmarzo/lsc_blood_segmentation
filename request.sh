@@ -14,6 +14,6 @@ source /homes/$USER/cvcs2026/venv/bin/activate
 echo "Launching the Python script..."
 
 cd ./lab || exit 1
-python -m scripts.train
+python -m scripts.train $1
 
 echo "Python script completed."

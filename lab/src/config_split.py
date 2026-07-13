@@ -12,6 +12,7 @@ CSV_TRAIN_PATH = os.path.join(OUT_DIR_SPLIT, 'train.csv')
 CSV_VALID_PATH = os.path.join(OUT_DIR_SPLIT, 'val.csv')
 CSV_TEST_PATH = os.path.join(OUT_DIR_SPLIT, 'test.csv')
 
+DEFAULT_EPOCHS = 5
 NUM_DATASET_FOLDERS = 11
 IMG_EXT = '.png'
 IMG_STRING = 'images'

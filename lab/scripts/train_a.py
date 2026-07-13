@@ -3,13 +3,15 @@ file: train.py
 
 brief:  this script acts as "main" entry for python calls
 
-        Creates trasnformers to convert both image and mask from pgn to torch.tensor
-        Use of mean and std to normalize data comes off knowns ResNet pre trained values
+        Uses the path "A", getting not two mask (one for blood and one for background), but a single one 
+        with the probability of being blood. From that, a BCE it's performed (combined with a Dice loss) to
+        attack the class unbalance
         
 """
 
 import numpy as np
 import os
+import sys
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
@@ -18,17 +20,21 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-"""
-function: tensor_proprieties
-brief:    this routine displays all the useful proprieties of a torch tensor (shape, data type.. etc)
-"""
 
+"""
+function: prepare mask
+brief:    this routine instantiate a loss depending on the mode selected
+"""  
 def prepare_mask(train_mask, mode):
     if mode == "binary":
         return train_mask.float().to('cuda')
     else:
         return torch.squeeze(train_mask,1).to(torch.long).to("cuda") # uses index to avoid removal batch size of 1
-    
+
+"""
+function: select loss
+brief:    this routine instantiate a loss depending on the mode selected
+"""    
 def select_loss(mode):
     if mode == "binary":
         return torch.nn.BCEWithLogitsLoss().to("cuda")
@@ -40,11 +46,20 @@ def get_predictions(logits, mode):
         return (torch.sigmoid(logits)>=config_split.BINARY_THRESHOLD).long()
     return logits.argmax(dim = 1)
 
+"""
+function: get_segmentation_stats
+brief:    this routine retrieves the metrics for segmentation
+"""
 def get_segmentation_stats(predictions, mask, mode):
     if mode == "binary":
         return smp.metrics.get_stats(predictions, mask.long(), mode=mode)
     else:
         return smp.metrics.get_stats(predictions, mask, mode=mode, num_classes=config_split.NUM_CLASSES)
+
+"""
+function: tensor_proprieties
+brief:    this routine displays all the useful proprieties of a torch tensor (shape, data type.. etc)
+"""
 
 def tensor_proprieties(tensor, index):
     print(f"shape: {tensor[index].shape}")
@@ -57,6 +72,12 @@ transform_img = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
         mean=[0.485, 0.456, 0.406], 
         std=[0.229, 0.224, 0.225]
     )])
+
+# check for number of epochs, if not passed, default is 5
+if len (sys.argv) > 1:
+    n_epochs = int(sys.argv[1])
+else:
+    n_epochs = config_split.DEFAULT_EPOCHS
 
 transform_mask = transforms.Compose([transforms.PILToTensor()])
 
@@ -101,7 +122,6 @@ os.makedirs(
 best_val_loss = float('inf')
 
 # testing all dataset for few epochs
-n_epochs = 10
 for epoch in range (n_epochs):
     i = 0
     train_loss_sum = 0

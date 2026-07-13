@@ -10,6 +10,7 @@ brief:  this script acts as "main" entry for python calls
 
 import numpy as np
 import os
+import sys
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
@@ -28,6 +29,11 @@ def tensor_proprieties (tensor, index):
     print(f"values: {torch.unique(tensor[index])}")
     print(f"len: {len(tensor[index])}")
 
+# check for number of epochs, if not passed, default is 5
+if len (sys.argv) > 1:
+    n_epochs = int(sys.argv[1])
+else:
+    n_epochs = config_split.DEFAULT_EPOCHS
 
 # creating the transform Compose for images and masks
 transform_img = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
@@ -69,7 +75,6 @@ ce_loss = torch.nn.CrossEntropyLoss().to("cuda")
 print(ce_loss(img_1, train_mask))
 
 # optimizer Adam
-
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
 os.makedirs(
@@ -80,7 +85,6 @@ os.makedirs(
 best_val_loss = float('inf')
 
 # testing all dataset for few epochs
-n_epochs = 10
 for epoch in range (n_epochs):
     i = 0
     train_loss_sum = 0
