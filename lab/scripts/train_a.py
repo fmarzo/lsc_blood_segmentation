@@ -1,13 +1,41 @@
 """
 file: train.py
 
-brief:  this script acts as "main" entry for python calls
+brief:  this script is the main entry point for training the blood segmentation model.
 
-        Uses the path "A", getting not two mask (one for blood and one for background), but a single one 
-        with the probability of being blood. From that, a BCE it's performed (combined with a Dice loss) to
-        attack the class unbalance
-        
+    The image transform converts each input image from PIL format to a PyTorch
+    tensor and normalizes its RGB channels using the ImageNet mean and standard
+    deviation expected by the pretrained ResNet encoder.
+
+    The mask transform converts each segmentation mask to a tensor without
+    normalizing it, preserving its class values.
+
+    CustomImageDataset reads the image and mask paths from the corresponding
+    CSV split and returns matching image-mask pairs after applying the selected
+    transforms.
+
+    DataLoader groups these pairs into batches and loads them during training,
+    validation, and testing. Training samples are shuffled at every epoch,
+    while validation and test samples keep their original order.
+
+    The script supports two segmentation approaches:
+
+    - Multiclass segmentation:
+      the model produces two output channels, one for background and one for
+      blood. CrossEntropyLoss compares the predicted class of every pixel with
+      the corresponding ground-truth class.
+
+    - Binary segmentation:
+      the model produces one output channel representing the presence of blood.
+      BCEWithLogitsLoss evaluates every pixel independently, while DiceLoss
+      checks how well the entire predicted blood region overlaps the real one.
+
+      DiceLoss is especially useful in this dataset because blood pixels can be
+      much fewer than background pixels. It prevents the model from obtaining a
+      good result simply by predicting mostly background and encourages it to
+      correctly recover the shape and area of the blood region.
 """
+
 
 import numpy as np
 import os
@@ -23,7 +51,7 @@ import segmentation_models_pytorch as smp
 
 """
 function: prepare mask
-brief:    this routine instantiate a loss depending on the mode selected
+brief:    this routine prepares the mask for the loss
 """  
 def prepare_mask(train_mask, mode):
     if mode == "binary":
@@ -31,20 +59,30 @@ def prepare_mask(train_mask, mode):
     else:
         return torch.squeeze(train_mask,1).to(torch.long).to("cuda") # uses index to avoid removal batch size of 1
 
-"""
-function: select loss
-brief:    this routine instantiate a loss depending on the mode selected
-"""    
-def select_loss(mode):
-    if mode == "binary":
-        return torch.nn.BCEWithLogitsLoss().to("cuda")
-    else:    
-        return torch.nn.CrossEntropyLoss().to("cuda")
 
+"""
+function: compute_loss
+brief:    this routine computes the selected loss depending on mode
+"""    
+def compute_loss(mode, logits, mask, bce_loss, dice_loss, ce_loss):
+    if mode == "binary":
+        bce_value = bce_loss(logits, mask)
+        dice_value = dice_loss(logits, mask)
+        return bce_value + dice_value
+    else:    
+        return ce_loss(logits, mask)
+
+
+"""
+function: get_predictions
+brief:    this routine converts the model output into the final predicted map of value
+"""
 def get_predictions(logits, mode):
     if mode == "binary":
         return (torch.sigmoid(logits)>=config_split.BINARY_THRESHOLD).long()
-    return logits.argmax(dim = 1)
+    else:
+        return logits.argmax(dim = 1)
+
 
 """
 function: get_segmentation_stats
@@ -56,16 +94,17 @@ def get_segmentation_stats(predictions, mask, mode):
     else:
         return smp.metrics.get_stats(predictions, mask, mode=mode, num_classes=config_split.NUM_CLASSES)
 
+
 """
 function: tensor_proprieties
 brief:    this routine displays all the useful proprieties of a torch tensor (shape, data type.. etc)
 """
-
 def tensor_proprieties(tensor, index):
     print(f"shape: {tensor[index].shape}")
     print(f"type: {tensor[index].dtype}")
     print(f"values: {torch.unique(tensor[index])}")
     print(f"len: {len(tensor[index])}")
+
 
 # creating the transform Compose for images and masks
 transform_img = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
@@ -95,21 +134,22 @@ print(f"Feature batch shape: {train_img.size()}")
 print(f"Labels batch shape: {train_mask.size()}")
 
 # instantiate the unet
-
 unet = smp.Unet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=3, classes=config_split.NUM_CLASSES)
 unet.to("cuda")
 
-# images 
-train_img = train_img.to("cuda")
-img_1 = unet(train_img)
-print(img_1.shape)
+# TEST FOR IMAGE SHAPE
+# # images 
+# train_img = train_img.to("cuda")
+# img_1 = unet(train_img)
+# print(img_1.shape)
 
-# mask
-train_mask = prepare_mask(train_mask, config_split.SEGMENTATION_MODE)
+# INITIAL TEST ON A SINGLE BATCH
+# # mask
+# train_mask = prepare_mask(train_mask, config_split.SEGMENTATION_MODE)
 
-# select loss_train
-loss = select_loss(config_split.SEGMENTATION_MODE)
-print(loss(img_1, train_mask))
+# # select loss_train
+# loss_value = compute_loss(config_split.SEGMENTATION_MODE, img_1, train_mask)
+# print(loss_value)
 
 # optimizer Adam
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
@@ -121,6 +161,11 @@ os.makedirs(
 
 best_val_loss = float('inf')
 
+# Initialize the loss functions before the training loop so they are instantiated only once
+bce_loss = torch.nn.BCEWithLogitsLoss().to("cuda")
+dice_loss = smp.losses.DiceLoss(mode=config_split.SEGMENTATION_MODE, from_logits=True).to("cuda")
+ce_loss = torch.nn.CrossEntropyLoss().to("cuda")
+
 # testing all dataset for few epochs
 for epoch in range (n_epochs):
     i = 0
@@ -130,11 +175,11 @@ for epoch in range (n_epochs):
         train_mask = prepare_mask(train_mask, config_split.SEGMENTATION_MODE)
         train_img = train_img.to("cuda")
         img_forward = unet(train_img)
-        loss_train = loss(img_forward, train_mask)
+        loss_train_value = compute_loss(config_split.SEGMENTATION_MODE, img_forward, train_mask, bce_loss, dice_loss, ce_loss)
         if i % 50 == 0:
-            print(f"loss_train {loss_train}")
-        train_loss_sum += loss_train.item()
-        loss_train.backward()
+            print(f"loss_train {loss_train_value}")
+        train_loss_sum += loss_train_value.item()
+        loss_train_value.backward()
         adam.step()
         i += 1
     train_batch_num = len(train_hemo_DL)
@@ -149,10 +194,10 @@ for epoch in range (n_epochs):
             val_mask = prepare_mask(val_mask, config_split.SEGMENTATION_MODE)
             val_img = val_img.to("cuda")
             img_forward = unet(val_img)
-            loss_valid = loss(img_forward, val_mask)
+            loss_valid_value = compute_loss(config_split.SEGMENTATION_MODE, img_forward, val_mask, bce_loss, dice_loss, ce_loss)
             if j % 50 == 0:
-                print(f"loss_valid {loss_valid}")
-            val_loss_sum += loss_valid.item()
+                print(f"loss_valid {loss_valid_value}")
+            val_loss_sum += loss_valid_value.item()
             final_map = get_predictions(img_forward, config_split.SEGMENTATION_MODE)
             batch_tp, batch_fp, batch_fn, batch_tn = get_segmentation_stats(final_map, val_mask, mode=config_split.SEGMENTATION_MODE)
             tp += batch_tp.sum(dim=0)
