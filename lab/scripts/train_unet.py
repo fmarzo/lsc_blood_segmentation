@@ -126,7 +126,6 @@ else:
 
 transform_mask = transforms.Compose([transforms.PILToTensor()])
 
-
 train_ds = CustomImageDataset(config_split.CSV_TRAIN_PATH, transform_img, transform_mask)
 valid_ds = CustomImageDataset(config_split.CSV_VALID_PATH, transform_img, transform_mask)
 test_ds  = CustomImageDataset(config_split.CSV_TEST_PATH,  transform_img, transform_mask)
