@@ -14,8 +14,8 @@ import sys
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
-from src.hemoset_dataset import CustomImageDataset
-from src import config_split
+# from src.hemoset_dataset import CustomImageDataset
+# from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
