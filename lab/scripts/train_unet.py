@@ -48,12 +48,12 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-# # COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
-# # The installed cuDNN version does not support the Tesla K80 GPU.
-# torch.backends.cudnn.enabled = False
+# COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# The installed cuDNN version does not support the Tesla K80 GPU.
+torch.backends.cudnn.enabled = False
 
-# # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
-# torch.backends.nnpack.set_flags(False)
+# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -231,4 +231,3 @@ for epoch in range (n_epochs):
     print(f"avg_iou {avg_iou}")
     print(f"avg_dice {avg_dice}")
     
-    print(f"----------------------------------------")
