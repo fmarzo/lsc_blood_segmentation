@@ -43,17 +43,21 @@ import os
 import sys
 import torch
 import torchvision.transforms as transforms
-from src.hemoset_dataset import CustomImageDataset
+from src.data_transforms import (
+    create_train_transform,
+    create_eval_transform,
+)
+from src.hemoset_dataset_v2 import CustomImageDataset
 from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-# # COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
-# # The installed cuDNN version does not support the Tesla K80 GPU.
-# torch.backends.cudnn.enabled = False
+# COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# The installed cuDNN version does not support the Tesla K80 GPU.
+torch.backends.cudnn.enabled = False
 
-# # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
-# torch.backends.nnpack.set_flags(False)
+# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -132,11 +136,23 @@ if len (sys.argv) > 1:
 else:
     n_epochs = config_split.DEFAULT_EPOCHS
 
-transform_mask = transforms.Compose([transforms.PILToTensor()])
+train_transform = create_train_transform()
+eval_transform = create_eval_transform()
 
-train_ds = CustomImageDataset(config_split.CSV_TRAIN_PATH, transform_img, transform_mask)
-valid_ds = CustomImageDataset(config_split.CSV_VALID_PATH, transform_img, transform_mask)
-test_ds  = CustomImageDataset(config_split.CSV_TEST_PATH,  transform_img, transform_mask)
+train_ds = CustomImageDataset(
+    config_split.CSV_TRAIN_PATH,
+    train_transform,
+)
+
+valid_ds = CustomImageDataset(
+    config_split.CSV_VALID_PATH,
+    eval_transform,
+)
+
+test_ds = CustomImageDataset(
+    config_split.CSV_TEST_PATH,
+    eval_transform,
+)
 
 train_hemo_DL = DataLoader(train_ds, 4, num_workers=2, shuffle=True)
 valid_hemo_DL = DataLoader(valid_ds, 4, num_workers=2, shuffle=False)
