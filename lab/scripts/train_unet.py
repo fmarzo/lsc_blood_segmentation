@@ -99,7 +99,16 @@ def get_segmentation_stats(predictions, mask, mode):
         return smp.metrics.get_stats(predictions, mask.long(), mode=mode)
     else:
         return smp.metrics.get_stats(predictions, mask, mode=mode, num_classes=config_split.NUM_CLASSES)
-
+    
+"""
+function: get_class_target
+brief:    this routine retrieves the mask for only target class (blood)
+"""
+def get_class_target (target_class, mode):
+    if mode == "binary":
+        return target_class[0]
+    else:
+        return target_class[1]
 
 """
 function: tensor_proprieties
@@ -110,7 +119,6 @@ def tensor_proprieties(tensor, index):
     print(f"type: {tensor[index].dtype}")
     print(f"values: {torch.unique(tensor[index])}")
     print(f"len: {len(tensor[index])}")
-
 
 # creating the transform Compose for images and masks
 transform_img = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
@@ -214,8 +222,12 @@ for epoch in range (n_epochs):
 
     val_batch_num = len(valid_hemo_DL)
     avg_val_loss = val_loss_sum/val_batch_num
-    avg_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-    avg_dice = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+    avg_iou_classes = smp.metrics.iou_score(tp, fp, fn, tn, reduction="none")
+    avg_dice_classes = smp.metrics.f1_score(tp, fp, fn, tn, reduction="none")
+
+    # retrieving scores only for BLOOD, excluding background pixels
+    avg_iou = get_class_target(avg_iou_classes, mode=config_split.SEGMENTATION_MODE)
+    avg_dice = get_class_target(avg_dice_classes, mode=config_split.SEGMENTATION_MODE)
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss

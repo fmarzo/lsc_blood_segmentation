@@ -1,6 +1,6 @@
 {
     "terminal.integrated.automationProfile.linux": {
-        "path": "${workspaceFolder}/bash.sh"
+        "path": "${workspaceFolder}/bash_login.sh"
     },
     "python-envs.defaultEnvManager": "ms-python.python:system"
 }
