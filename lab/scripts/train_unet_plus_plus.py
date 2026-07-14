@@ -5,6 +5,13 @@ brief:
   
     The model uses a ResNet-18 encoder pretrained on ImageNet. During training, both 
     the pretrained encoder and the U-Net++ decoder parameters are updated.
+    
+    Online data augmentation is applied whenever the DataLoader loads a training
+    sample. Random flips and rotations are synchronized between images and masks,
+    while color jitter affects only images. The dataset size remains unchanged, but
+    new random variants can be generated at each epoch. Validation and test data
+    receive only ImageNet normalization.
+
     This script works in the same way as the U-Net training script, using the same dataset, 
     preprocessing, loss functions, metrics, and binary/multiclass configuration. 
     The main difference is that the model is implemented using the `UnetPlusPlus` class provided by `segmentation_models_pytorch`.
@@ -15,11 +22,21 @@ import os
 import sys
 import torch
 import torchvision.transforms as transforms
-from src.hemoset_dataset import CustomImageDataset
+from src.data_transforms import (
+    create_train_transform,
+    create_eval_transform,
+)
+from src.hemoset_dataset_v2 import CustomImageDataset
 from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
+# COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# The installed cuDNN version does not support the Tesla K80 GPU.
+torch.backends.cudnn.enabled = False
+
+# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -66,6 +83,15 @@ def get_segmentation_stats(predictions, mask, mode):
     else:
         return smp.metrics.get_stats(predictions, mask, mode=mode, num_classes=config_split.NUM_CLASSES)
 
+"""
+function: get_class_target
+brief:    this routine retrieves the mask for only target class (blood)
+"""
+def get_class_target (target_class, mode):
+    if mode == "binary":
+        return target_class[0]
+    else:
+        return target_class[1]
 
 """
 function: tensor_proprieties
@@ -78,24 +104,30 @@ def tensor_proprieties(tensor, index):
     print(f"len: {len(tensor[index])}")
 
 
-# creating the transform Compose for images and masks
-transform_img = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
-        mean=[0.485, 0.456, 0.406], 
-        std=[0.229, 0.224, 0.225]
-    )])
-
 # check for number of epochs, if not passed, default is 5
 if len (sys.argv) > 1:
     n_epochs = int(sys.argv[1])
 else:
     n_epochs = config_split.DEFAULT_EPOCHS
 
-transform_mask = transforms.Compose([transforms.PILToTensor()])
+train_transform = create_train_transform()
+eval_transform = create_eval_transform()
 
+train_ds = CustomImageDataset(
+    config_split.CSV_TRAIN_PATH,
+    train_transform,
+)
 
-train_ds = CustomImageDataset(config_split.CSV_TRAIN_PATH, transform_img, transform_mask)
-valid_ds = CustomImageDataset(config_split.CSV_VALID_PATH, transform_img, transform_mask)
-test_ds  = CustomImageDataset(config_split.CSV_TEST_PATH,  transform_img, transform_mask)
+valid_ds = CustomImageDataset(
+    config_split.CSV_VALID_PATH,
+    eval_transform,
+)
+
+test_ds = CustomImageDataset(
+    config_split.CSV_TEST_PATH,
+    eval_transform,
+)
+
 
 train_hemo_DL = DataLoader(train_ds, 4, num_workers=2, shuffle=True)
 valid_hemo_DL = DataLoader(valid_ds, 4, num_workers=2, shuffle=False)
@@ -140,6 +172,7 @@ ce_loss = torch.nn.CrossEntropyLoss().to("cuda")
 
 # testing all dataset for few epochs
 for epoch in range (n_epochs):
+    print(f"------------ EPOCH: {epoch+1} ------------")
     i = 0
     train_loss_sum = 0
     for train_img, train_mask in train_hemo_DL:
@@ -180,14 +213,20 @@ for epoch in range (n_epochs):
 
     val_batch_num = len(valid_hemo_DL)
     avg_val_loss = val_loss_sum/val_batch_num
-    avg_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-    avg_dice = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
+    avg_iou_classes = smp.metrics.iou_score(tp, fp, fn, tn, reduction="none")
+    avg_dice_classes = smp.metrics.f1_score(tp, fp, fn, tn, reduction="none")
+
+    # retrieving scores only for BLOOD, excluding background pixels
+    avg_iou = get_class_target(avg_iou_classes, mode=config_split.SEGMENTATION_MODE)
+    avg_dice = get_class_target(avg_dice_classes, mode=config_split.SEGMENTATION_MODE)
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
         torch.save(unet_plus.state_dict(), config_split.UNET_PLUS_PLUS_PRETRAINED_PATH)
 
     unet_plus.train()
+
+    print(f"----- Avg values for epoch {epoch+1} -----")
 
     print(f"avg_train_loss {avg_train_loss}")
     print(f"avg_val_loss {avg_val_loss}")
