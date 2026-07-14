@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=01:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=/work/cvcs2026/latent_space_cowboys/logs/train_%j.log
 #SBATCH --error=/work/cvcs2026/latent_space_cowboys/logs/train_%j.log
 #SBATCH --account=cvcs2026
