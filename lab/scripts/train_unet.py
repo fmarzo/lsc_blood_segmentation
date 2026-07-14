@@ -48,12 +48,12 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-#Comandi usati unicamente per far partire da bash.sh il training
-# Tesla K80 non supportata dalla versione cuDNN installata
-torch.backends.cudnn.enabled = False
+# # COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# # The installed cuDNN version does not support the Tesla K80 GPU.
+# torch.backends.cudnn.enabled = False
 
-# Evita i warning NNPACK sulla CPU del nodo
-torch.backends.nnpack.set_flags(False)
+# # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+# torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -174,6 +174,7 @@ ce_loss = torch.nn.CrossEntropyLoss().to("cuda")
 
 # testing all dataset for few epochs
 for epoch in range (n_epochs):
+    print(f"------------ EPOCH: {epoch+1} ------------")
     i = 0
     train_loss_sum = 0
     for train_img, train_mask in train_hemo_DL:
@@ -223,9 +224,11 @@ for epoch in range (n_epochs):
 
     unet.train()
 
+    print(f"----- Avg values for epoch {epoch+1} -----")
+
     print(f"avg_train_loss {avg_train_loss}")
     print(f"avg_val_loss {avg_val_loss}")
     print(f"avg_iou {avg_iou}")
     print(f"avg_dice {avg_dice}")
     
-    
+    print(f"----------------------------------------")

@@ -36,7 +36,7 @@ TRAIN_VIDEO_ID = [PIG1, PIG3, PIG4, PIG6, PIG7]
 VAL_VIDEO_ID =   [PIG2, PIG9, PIG11]
 TEST_VIDEO_ID =  [PIG5, PIG10]
 
-SEGMENTATION_MODE = "binary"   # oppure "multiclass"
+SEGMENTATION_MODE = "multiclass"   # "binary" oppure "multiclass"
 NUM_CLASSES = 1 if SEGMENTATION_MODE == "binary" else 2
 BINARY_THRESHOLD = 0.5
 UNET_PRETRAINED_PATH = os.path.join(
