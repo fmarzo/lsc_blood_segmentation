@@ -14,8 +14,8 @@ import sys
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
-# from src.hemoset_dataset import CustomImageDataset
-# from src import config_split
+from src.hemoset_dataset import CustomImageDataset
+from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
@@ -129,9 +129,9 @@ for epoch in range (n_epochs):
     avg_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
     avg_dice = smp.metrics.f1_score(tp, fp, fn, tn, reduction="micro")
 
-    if avg_val_loss < best_val_loss:
-        best_val_loss = avg_val_loss
-        torch.save(unet.state_dict(), config_split.MODEL_PRETRAINED_PATH)
+    # if avg_val_loss < best_val_loss:
+    #     best_val_loss = avg_val_loss
+    #     torch.save(unet.state_dict(), config_split.MODEL_PRETRAINED_PATH)
 
     unet.train()
 

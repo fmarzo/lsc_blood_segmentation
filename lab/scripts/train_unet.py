@@ -48,6 +48,12 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
+#Comandi usati unicamente per far partire da bash.sh il training
+# Tesla K80 non supportata dalla versione cuDNN installata
+torch.backends.cudnn.enabled = False
+
+# Evita i warning NNPACK sulla CPU del nodo
+torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
