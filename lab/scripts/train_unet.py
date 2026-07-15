@@ -183,6 +183,13 @@ unet.to("cuda")
 # optimizer Adam
 adam = torch.optim.Adam(unet.parameters(), lr=0.001)
 
+# learning rate decay in epoch 10 
+scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    adam,
+    milestones=[10],
+    gamma=0.1, # 0.001 x 0.1 = 0.0001
+)
+
 os.makedirs(
     os.path.dirname(config_split.UNET_PRETRAINED_PATH),
     exist_ok=True
@@ -248,6 +255,12 @@ for epoch in range (n_epochs):
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
         torch.save(unet.state_dict(), config_split.UNET_PRETRAINED_PATH)
+    
+    # learning rate decay
+    scheduler.step()
+
+    current_lr = scheduler.get_last_lr()[0]
+    print(f"learning_rate {current_lr}")
 
     unet.train()
 
