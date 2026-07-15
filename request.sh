@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=lsc_train
+#SBATCH --job-name=res_18_lsc
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -12,7 +12,7 @@
 
 source /homes/$USER/cvcs2026/venv/bin/activate
 
-script_file="train_unet"
+script_file="train_unet_resnet"
 
 echo "${script_file} execution"
 
