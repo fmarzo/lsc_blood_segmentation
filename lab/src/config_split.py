@@ -53,3 +53,5 @@ UNET_PLUS_PLUS_PRETRAINED_PATH = os.path.join(
     if SEGMENTATION_MODE == "binary"
     else "unet_plus_plus_resnet18_multiclass_best.pth"
 )
+
+MODEL_TO_EVALUATE = "unet_plus_plus" # or "unet"

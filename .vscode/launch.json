@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Train",
+            "name": "Python Debugger: Train U-Net",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.train_unet",
@@ -12,6 +12,18 @@
                 "CUDA_VISIBLE_DEVICES": "0"
             },
             "args": "${command:pickArgs}",
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate Model",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.evaluate_model",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
             "justMyCode": true
         }
     ]
