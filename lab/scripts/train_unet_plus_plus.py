@@ -21,7 +21,6 @@ brief:
 import os
 import sys
 import torch
-import torchvision.transforms as transforms
 from src.data_transforms import (
     create_train_transform,
     create_eval_transform,
@@ -31,12 +30,12 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-# COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
-# The installed cuDNN version does not support the Tesla K80 GPU.
-torch.backends.cudnn.enabled = False
+# # COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# # The installed cuDNN version does not support the Tesla K80 GPU.
+# torch.backends.cudnn.enabled = False
 
-# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
-torch.backends.nnpack.set_flags(False)
+# # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+# torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -158,6 +157,13 @@ unet_plus.to("cuda")
 # optimizer Adam
 adam = torch.optim.Adam(unet_plus.parameters(), lr=0.001)
 
+# learning rate decay in epoch 10 
+scheduler = torch.optim.lr_scheduler.MultiStepLR(
+    adam,
+    milestones=[10],
+    gamma=0.1, # 0.001 x 0.1 = 0.0001
+)
+
 os.makedirs(
     os.path.dirname(config_split.UNET_PLUS_PLUS_PRETRAINED_PATH),
     exist_ok=True
@@ -223,6 +229,12 @@ for epoch in range (n_epochs):
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
         torch.save(unet_plus.state_dict(), config_split.UNET_PLUS_PLUS_PRETRAINED_PATH)
+
+    # learning rate decay
+    scheduler.step()
+
+    current_lr = scheduler.get_last_lr()[0]
+    print(f"learning_rate {current_lr}")
 
     unet_plus.train()
 
