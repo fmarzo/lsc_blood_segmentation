@@ -12,9 +12,12 @@
 
 source /homes/$USER/cvcs2026/venv/bin/activate
 
-echo "Launching the Python script..."
+script_file="train_unet"
+
+echo "${script_file} execution"
 
 cd ./lab || exit 1
-python -m scripts.train_unet $1
+
+python -m scripts.${script_file} "$1"
 
 echo "Python script completed."

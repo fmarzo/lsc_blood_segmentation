@@ -162,9 +162,12 @@ train_img, train_mask = next(iter(train_hemo_DL))
 print(f"Feature batch shape: {train_img.size()}")
 print(f"Labels batch shape: {train_mask.size()}")
 
+encoder_name = "efficientnet-b4"
 # instantiate the unet
-unet = smp.Unet(encoder_name="resnet18", encoder_weights="imagenet", in_channels=3, classes=config_split.NUM_CLASSES)
+unet = smp.Unet(encoder_name=encoder_name, encoder_weights="imagenet", in_channels=3, classes=config_split.NUM_CLASSES)
 unet.to("cuda")
+
+print(encoder_name)
 
 # TEST FOR IMAGE SHAPE
 # # images 
