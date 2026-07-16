@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=res_18_lsc
+#SBATCH --job-name=upp_18_lsc
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=00:30:00
+#SBATCH --time=00:45:00
 #SBATCH --output=/work/cvcs2026/latent_space_cowboys/logs/train_%j.log
 #SBATCH --error=/work/cvcs2026/latent_space_cowboys/logs/train_%j.log
 #SBATCH --account=cvcs2026
@@ -12,7 +12,7 @@
 
 source /homes/$USER/cvcs2026/venv/bin/activate
 
-script_file="train_unet_resnet"
+script_file="train_unet_plus_plus"
 
 echo "${script_file} execution"
 
