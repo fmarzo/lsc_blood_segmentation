@@ -142,6 +142,49 @@ with torch.no_grad():
     # Keep one blood segmentation score for each test image: those are two tensor taht contains a value for each image
     iou_per_image = iou_classes[:, blood_class_index]
     dice_per_image = dice_classes[:, blood_class_index]
+    
+    #-------
+    # Count the ground-truth and predicted blood pixels for each test image
+    blood_gt_pixels = (
+        tp[:, blood_class_index] +
+        fn[:, blood_class_index]
+    )
+
+    blood_pred_pixels = (
+        tp[:, blood_class_index] +
+        fp[:, blood_class_index]
+    )
+
+    # Separate images with blood from images with an empty blood mask
+    images_with_blood_mask = blood_gt_pixels > 0
+    empty_images_mask = blood_gt_pixels == 0
+
+    total_images = iou_per_image.numel()
+    images_with_blood = images_with_blood_mask.sum().item()
+    empty_images = empty_images_mask.sum().item()
+
+    # Check whether the model correctly predicts no blood on empty images
+    correct_empty_predictions = (
+        empty_images_mask & (blood_pred_pixels == 0)
+    ).sum().item()
+
+    # Count empty images where the model incorrectly predicts blood
+    empty_images_with_false_positives = (
+        empty_images_mask & (blood_pred_pixels > 0)
+    ).sum().item()
+
+    print("\n----- Test image composition -----")
+    print(f"Total images: {total_images}")
+    print(f"Images with blood: {images_with_blood}")
+    print(f"Images without blood: {empty_images}")
+
+    print("\n----- Empty image predictions -----")
+    print(f"Correctly predicted as empty: {correct_empty_predictions}")
+    print(
+        "Empty images with false-positive blood: "
+        f"{empty_images_with_false_positives}"
+    )
+
 
 # Compute the mean score across all test images
 mean_iou = iou_per_image.mean().item()
@@ -156,3 +199,4 @@ print(f"Checkpoint: {checkpoint_path}")
 print(f"Test images: {iou_per_image.numel()}")
 print(f"IoU:  {mean_iou:.4f} +/- {std_iou:.4f}")
 print(f"Dice: {mean_dice:.4f} +/- {std_dice:.4f}")
+
