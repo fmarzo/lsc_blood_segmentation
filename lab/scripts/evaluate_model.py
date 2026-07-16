@@ -10,11 +10,14 @@ brief:
     false negatives, and true negatives separately. It then computes the IoU
     and Dice score of the blood class for every image.
 
-    The final results are reported as the mean and standard deviation across
-    all test images. Unlike the training evaluation, the statistics are not
-    summed before computing the metrics. This ensures that every image
-    contributes equally to the final result and also shows how much model
-    performance varies between different test images.
+    Two evaluation methods are reported. Dataset-level metrics are computed
+    by summing the confusion statistics across all test images before
+    calculating IoU and Dice, matching the method used during validation.
+
+    Per-image metrics are also computed separately and reported as mean and
+    standard deviation. This gives equal importance to every image and shows
+    how much the model performance varies across the test set. Both methods
+    consider only the blood class and exclude the background score.
 """
 
 import torch
@@ -139,11 +142,45 @@ with torch.no_grad():
     # Select the blood class according to the segmentation mode
     blood_class_index = get_class_target(config_split.SEGMENTATION_MODE)
 
-    # Keep one blood segmentation score for each test image: those are two tensor taht contains a value for each image
+    # Sum the confusion statistics across all test images while keeping
+    # the classes separate
+    global_tp = tp.sum(dim=0)
+    global_fp = fp.sum(dim=0)
+    global_fn = fn.sum(dim=0)
+    global_tn = tn.sum(dim=0)
+
+    # Compute one dataset-level score for each class
+    global_iou_classes = smp.metrics.iou_score(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+    global_dice_classes = smp.metrics.f1_score(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+    # Select the global scores corresponding to the blood class
+    global_iou = global_iou_classes[blood_class_index].item()
+    global_dice = global_dice_classes[blood_class_index].item()
+
+    # Keep one blood segmentation score for each test image: those are two tensor that contains a value for each image
     iou_per_image = iou_classes[:, blood_class_index]
     dice_per_image = dice_classes[:, blood_class_index]
+
+    # Get the video ID associated with each test image
+    test_video_ids = test_ds.csv_dirs[config_split.VIDEOID_STRING]
+
+    # Check how many test images belong to each video
+    print("\n----- Test images per video -----")
+    print(test_video_ids.value_counts())
     
-    #-------
     # Count the ground-truth and predicted blood pixels for each test image
     blood_gt_pixels = (
         tp[:, blood_class_index] +
@@ -185,18 +222,47 @@ with torch.no_grad():
         f"{empty_images_with_false_positives}"
     )
 
-
-# Compute the mean score across all test images
+# Compute the mean per-image scores across the test set
 mean_iou = iou_per_image.mean().item()
 mean_dice = dice_per_image.mean().item()
 
-# Measure how much the scores vary between test images
+# Measure how much the per-image scores vary across the test set
 std_iou = iou_per_image.std(correction=0).item()
 std_dice = dice_per_image.std(correction=0).item()
 
-print(f"Model: {model_name}")
+print("\n----- Per-video per-image metrics -----")
+
+for video_id in config_split.TEST_VIDEO_ID:
+    # Select the test images belonging to the current video
+    video_mask = torch.tensor(
+        (test_video_ids == video_id).to_numpy(),
+        dtype=torch.bool,
+    )
+
+    video_iou = iou_per_image[video_mask]
+    video_dice = dice_per_image[video_mask]
+
+    # Compute mean and standard deviation for the current video
+    video_mean_iou = video_iou.mean().item()
+    video_std_iou = video_iou.std(correction=0).item()
+
+    video_mean_dice = video_dice.mean().item()
+    video_std_dice = video_dice.std(correction=0).item()
+
+    print(f"\nVideo: {video_id}")
+    print(f"Images: {video_iou.numel()}")
+    print(f"IoU:  {video_mean_iou:.4f} +/- {video_std_iou:.4f}")
+    print(f"Dice: {video_mean_dice:.4f} +/- {video_std_dice:.4f}")
+
+print(f"\nModel: {model_name}")
 print(f"Checkpoint: {checkpoint_path}")
 print(f"Test images: {iou_per_image.numel()}")
+
+print("\n----- Dataset-level metrics -----")
+print(f"IoU:  {global_iou:.4f}")
+print(f"Dice: {global_dice:.4f}")
+
+print("\n----- Per-image metrics -----")
 print(f"IoU:  {mean_iou:.4f} +/- {std_iou:.4f}")
 print(f"Dice: {mean_dice:.4f} +/- {std_dice:.4f}")
 
