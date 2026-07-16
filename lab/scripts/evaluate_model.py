@@ -242,6 +242,38 @@ for video_id in config_split.TEST_VIDEO_ID:
     video_iou = iou_per_image[video_mask]
     video_dice = dice_per_image[video_mask]
 
+    # Sum the confusion statistics of all images from the current video
+    video_tp = tp[video_mask].sum(dim=0)
+    video_fp = fp[video_mask].sum(dim=0)
+    video_fn = fn[video_mask].sum(dim=0)
+    video_tn = tn[video_mask].sum(dim=0)
+
+    # Compute one dataset-level score for each class in the current video
+    video_global_iou_classes = smp.metrics.iou_score(
+        video_tp,
+        video_fp,
+        video_fn,
+        video_tn,
+        reduction="none",
+    )
+
+    video_global_dice_classes = smp.metrics.f1_score(
+        video_tp,
+        video_fp,
+        video_fn,
+        video_tn,
+        reduction="none",
+    )
+
+    # Select only the blood class
+    video_global_iou = video_global_iou_classes[
+        blood_class_index
+    ].item()
+
+    video_global_dice = video_global_dice_classes[
+        blood_class_index
+    ].item()
+
     # Compute mean and standard deviation for the current video
     video_mean_iou = video_iou.mean().item()
     video_std_iou = video_iou.std(correction=0).item()
@@ -253,6 +285,8 @@ for video_id in config_split.TEST_VIDEO_ID:
     print(f"Images: {video_iou.numel()}")
     print(f"IoU:  {video_mean_iou:.4f} +/- {video_std_iou:.4f}")
     print(f"Dice: {video_mean_dice:.4f} +/- {video_std_dice:.4f}")
+    print(f"Global IoU:  {video_global_iou:.4f}")
+    print(f"Global Dice: {video_global_dice:.4f}")
 
 print(f"\nModel: {model_name}")
 print(f"Checkpoint: {checkpoint_path}")
