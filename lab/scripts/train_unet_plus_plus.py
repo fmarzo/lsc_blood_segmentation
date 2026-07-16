@@ -136,9 +136,13 @@ train_img, train_mask = next(iter(train_hemo_DL))
 print(f"Feature batch shape: {train_img.size()}")
 print(f"Labels batch shape: {train_mask.size()}")
 
+encoder_name = "resnet18"
+
 # instantiate the unet_plus
-unet_plus = smp.UnetPlusPlus(encoder_name="resnet18", encoder_weights="imagenet", in_channels=3, classes=config_split.NUM_CLASSES)
+unet_plus = smp.UnetPlusPlus(encoder_name=encoder_name, encoder_weights="imagenet", in_channels=3, classes=config_split.NUM_CLASSES)
 unet_plus.to("cuda")
+
+print(encoder_name)
 
 # TEST FOR IMAGE SHAPE
 # # images 
@@ -165,8 +169,13 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(
 )
 
 os.makedirs(
-    os.path.dirname(config_split.UNET_PLUS_PLUS_PRETRAINED_PATH),
-    exist_ok=True
+    config_split.MODEL_PRETRAINED_DIR,
+    exist_ok=True,
+)
+
+checkpoint_path = os.path.join(
+    config_split.MODEL_PRETRAINED_DIR,
+    f"unet_plus_plus_{config_split.SEGMENTATION_MODE}_best_{encoder_name}.pth",
 )
 
 best_val_loss = float('inf')
@@ -228,7 +237,7 @@ for epoch in range (n_epochs):
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
-        torch.save(unet_plus.state_dict(), config_split.UNET_PLUS_PLUS_PRETRAINED_PATH)
+        torch.save(unet_plus.state_dict(), checkpoint_path)
 
     # learning rate decay
     scheduler.step()

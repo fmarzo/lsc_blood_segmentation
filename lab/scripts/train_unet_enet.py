@@ -194,8 +194,13 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(
 )
 
 os.makedirs(
-    os.path.dirname(config_split.UNET_PRETRAINED_PATH),
-    exist_ok=True
+    config_split.MODEL_PRETRAINED_DIR,
+    exist_ok=True,
+)
+
+checkpoint_path = os.path.join(
+    config_split.MODEL_PRETRAINED_DIR,
+    f"unet_{config_split.SEGMENTATION_MODE}_best_{encoder_name}.pth",
 )
 
 best_val_loss = float('inf')
@@ -257,7 +262,7 @@ for epoch in range (n_epochs):
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
-        torch.save(unet.state_dict(), config_split.UNET_PRETRAINED_PATH)
+        torch.save(unet.state_dict(), checkpoint_path)
     
     # learning rate decay
     scheduler.step()

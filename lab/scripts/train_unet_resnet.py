@@ -52,12 +52,12 @@ from src import config_split
 from torch.utils.data import DataLoader
 import segmentation_models_pytorch as smp
 
-# # COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
-# # The installed cuDNN version does not support the Tesla K80 GPU.
-# torch.backends.cudnn.enabled = False
+# COMMANDS USED ONLY TO RUN THE TRAINING FROM THE BASH SCRIPT
+# The installed cuDNN version does not support the Tesla K80 GPU.
+torch.backends.cudnn.enabled = False
 
-# # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
-# torch.backends.nnpack.set_flags(False)
+# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+torch.backends.nnpack.set_flags(False)
 
 """
 function: prepare mask
@@ -194,8 +194,13 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(
 )
 
 os.makedirs(
-    os.path.dirname(config_split.UNET_PRETRAINED_PATH),
-    exist_ok=True
+    config_split.MODEL_PRETRAINED_DIR,
+    exist_ok=True,
+)
+
+checkpoint_path = os.path.join(
+    config_split.MODEL_PRETRAINED_DIR,
+    f"unet_{config_split.SEGMENTATION_MODE}_best_{encoder_name}.pth",
 )
 
 best_val_loss = float('inf')
@@ -257,7 +262,7 @@ for epoch in range (n_epochs):
 
     if avg_val_loss < best_val_loss:
         best_val_loss = avg_val_loss
-        torch.save(unet.state_dict(), config_split.UNET_PRETRAINED_PATH)
+        torch.save(unet.state_dict(), checkpoint_path)
     
     # learning rate decay
     scheduler.step()

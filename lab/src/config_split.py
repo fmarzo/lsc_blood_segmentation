@@ -34,24 +34,14 @@ PIG11   = "pig11"
 
 TRAIN_VIDEO_ID = [PIG1, PIG2, PIG9, PIG10]
 VAL_VIDEO_ID =   [PIG3, PIG5, PIG7]
-TEST_VIDEO_ID =  [PIG4, PIG6, PIG11]
+TEST_VIDEO_ID =  [PIG3, PIG5, PIG7]
 
 SEGMENTATION_MODE = "multiclass"   # "binary" oppure "multiclass"
 NUM_CLASSES = 1 if SEGMENTATION_MODE == "binary" else 2
 BINARY_THRESHOLD = 0.5
-UNET_PRETRAINED_PATH = os.path.join(
+MODEL_PRETRAINED_DIR = os.path.join(
     WORK_ROOT,
     "model_pretrained",
-    "unet_resnet18_binary_best.pth"
-    if SEGMENTATION_MODE == "binary"
-    else "unet_resnet18_multiclass_best.pth"
-)
-UNET_PLUS_PLUS_PRETRAINED_PATH = os.path.join(
-    WORK_ROOT,
-    "model_pretrained",
-    "unet_plus_plus_resnet18_binary_best.pth"
-    if SEGMENTATION_MODE == "binary"
-    else "unet_plus_plus_resnet18_multiclass_best.pth"
 )
 
 MODEL_TO_EVALUATE = "unet" # or "unet"

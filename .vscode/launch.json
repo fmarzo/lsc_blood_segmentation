@@ -5,7 +5,7 @@
             "name": "Python Debugger: Train U-Net",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.train_unet",
+            "module": "scripts.train_unet_resnet",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
