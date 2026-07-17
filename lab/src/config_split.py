@@ -36,7 +36,7 @@ TRAIN_VIDEO_ID = [PIG1, PIG2, PIG9, PIG10]
 VAL_VIDEO_ID =   [PIG3, PIG5, PIG7]
 TEST_VIDEO_ID =  [PIG4, PIG6, PIG11]
 
-SEGMENTATION_MODE = "multiclass"   # "binary" oppure "multiclass"
+SEGMENTATION_MODE = "binary"   # "binary" oppure "multiclass"
 NUM_CLASSES = 1 if SEGMENTATION_MODE == "binary" else 2
 BINARY_THRESHOLD = 0.5
 MODEL_PRETRAINED_DIR = os.path.join(
@@ -45,3 +45,5 @@ MODEL_PRETRAINED_DIR = os.path.join(
 )
 
 MODEL_TO_EVALUATE = "unet" # or "unet"
+
+ENCODER_NAME = "resnet18"

@@ -22,7 +22,7 @@ brief:
 
 import torch
 import segmentation_models_pytorch as smp
-
+import os
 from torch.utils.data import DataLoader
 from src import config_split
 from src.data_transforms import create_eval_transform
@@ -35,11 +35,19 @@ brief:    this routine creates the selected model and returns the path
 """
 def create_model(model):
     if model == "unet_plus_plus":
-        unet_plus = smp.UnetPlusPlus(encoder_name="resnet18", encoder_weights = None, in_channels=3, classes=config_split.NUM_CLASSES).to("cuda")
-        return unet_plus, config_split.UNET_PLUS_PLUS_PRETRAINED_PATH
+        unet_plus = smp.UnetPlusPlus(encoder_name=config_split.ENCODER_NAME, encoder_weights = None, in_channels=3, classes=config_split.NUM_CLASSES).to("cuda")
+        checkpoint_path = os.path.join(
+            config_split.MODEL_PRETRAINED_DIR,
+            f"unet_plus_plus_{config_split.SEGMENTATION_MODE}_best_{config_split.ENCODER_NAME}.pth",
+        )
+        return unet_plus, checkpoint_path
     else:
-        unet = smp.Unet(encoder_name="resnet18", encoder_weights = None, in_channels=3, classes=config_split.NUM_CLASSES).to("cuda")
-        return unet, config_split.UNET_PRETRAINED_PATH
+        unet = smp.Unet(encoder_name=config_split.ENCODER_NAME, encoder_weights = None, in_channels=3, classes=config_split.NUM_CLASSES).to("cuda")
+        checkpoint_path = os.path.join(
+            config_split.MODEL_PRETRAINED_DIR,
+            f"unet_{config_split.SEGMENTATION_MODE}_best_{config_split.ENCODER_NAME}.pth",
+        )
+        return unet, checkpoint_path
 
 """
 function: prepare mask
