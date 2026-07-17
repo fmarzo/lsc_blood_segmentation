@@ -12,6 +12,18 @@ CSV_TRAIN_PATH = os.path.join(OUT_DIR_SPLIT, 'train.csv')
 CSV_VALID_PATH = os.path.join(OUT_DIR_SPLIT, 'val.csv')
 CSV_TEST_PATH = os.path.join(OUT_DIR_SPLIT, 'test.csv')
 
+BLEEDING_DATASET_ROOT = os.path.join(WORK_ROOT,'datasets', 'bleeding_segmentation_v1p0',)
+BLEEDING_IMAGES_DIR = os.path.join(BLEEDING_DATASET_ROOT, 'images',)
+BLEEDING_MASKS_DIR = os.path.join(BLEEDING_DATASET_ROOT, 'masks',)
+OUT_DIR_SPLIT_V1P0 = os.path.join(PROJECT_ROOT,'splits_v1p0',)
+CSV_FILE_PATH_V1P0 = os.path.join(OUT_DIR_SPLIT_V1P0,'full_labeled_dataset.csv',)
+BLEEDING_IMG_EXT = '.jpg'
+BLEEDING_MASK_EXT = '.png'
+BLEEDING_VIDEO_ID = 'bleeding_segmentation_v1p0'
+CSV_TRAIN_PATH_V1P0 = os.path.join(OUT_DIR_SPLIT_V1P0, 'train.csv')
+CSV_VALID_PATH_V1P0 = os.path.join(OUT_DIR_SPLIT_V1P0, 'val.csv')
+CSV_TEST_PATH_V1P0 = os.path.join(OUT_DIR_SPLIT_V1P0, 'test.csv')
+
 DEFAULT_EPOCHS = 5
 NUM_DATASET_FOLDERS = 11
 IMG_EXT = '.png'
