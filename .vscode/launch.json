@@ -5,7 +5,7 @@
             "name": "Python Debugger: Train U-Net",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.train_unet_resnet",
+            "module": "scripts.train_unet_resnet18",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
@@ -15,10 +15,46 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate Model",
+            "name": "Python Debugger: Evaluate Model on Hemoset",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.evaluate_model",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate Model on BleedSeg ",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.evaluate_model_v1p0",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Final train ",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.final_train",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate Final train ",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.evaluate_final_model",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
