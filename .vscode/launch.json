@@ -30,7 +30,7 @@
             "name": "Python Debugger: Evaluate Unet Hemoset on rabbani ",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.evaluate_on_v1p0",
+            "module": "scripts.evaluate_rabbani_on_hemoset",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {

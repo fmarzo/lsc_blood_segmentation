@@ -1,5 +1,5 @@
 """
-file: evaluate_bleed_seg.py
+file: evaluate_rabbani_on_hemoset.py
 
 brief:
     This script loads the best validation checkpoint of a trained U-Net or
