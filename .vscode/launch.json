@@ -27,10 +27,10 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate Model on BleedSeg ",
+            "name": "Python Debugger: Evaluate Unet Hemoset on rabbani ",
             "type": "debugpy",
             "request": "launch",
-            "module": "scripts.evaluate_model_v1p0",
+            "module": "scripts.evaluate_on_v1p0",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
@@ -61,6 +61,31 @@
                 "CUDA_VISIBLE_DEVICES": "0"
             },
             "justMyCode": true
-        }
+        },
+        {
+            "name": "Python Debugger: Train U-Net on Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.rabbani.train_unet_resnet18_v1p0",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}",
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate Model on Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.rabbani.evaluate_model_rabbani",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
     ]
 }

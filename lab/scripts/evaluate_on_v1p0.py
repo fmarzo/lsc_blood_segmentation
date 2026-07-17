@@ -19,6 +19,8 @@ brief:
     Per-image metrics are also computed separately and reported as mean and
     standard deviation. Both methods consider only the blood class and exclude
     the background score.
+
+    ZERO SHOT OF A MODEL TRAINED ON HEMOSET WITH A TEST SET OF RABBANI
 """
 
 import torch
