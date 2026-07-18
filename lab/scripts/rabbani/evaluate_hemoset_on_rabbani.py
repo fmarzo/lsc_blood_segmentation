@@ -2,35 +2,38 @@
 file: evaluate_rabbani_on_hemoset.py
 
 brief:
-    This script evaluates a U-Net model trained on the Rabbani Bleed Seg
-    dataset using the HemoSet test split.
+    Evaluate a segmentation model trained on the Rabbani Bleeding
+    Segmentation dataset using the HemoSet test split.
 
-    The model configuration is fixed to:
+    The model architecture is selected in src/config_split.py through:
 
-    - architecture: U-Net
-    - encoder: ResNet-18
-    - segmentation mode: multiclass
-    - number of classes: 2
+        RABBANI_EVALUATION_MODEL = "unet"
+
+    or:
+
+        RABBANI_EVALUATION_MODEL = "deeplabv3plus"
+
+    Both architectures use:
+
+    - ResNet-18 encoder
+    - multiclass segmentation
+    - two output classes
     - class 0: background
     - class 1: blood
 
-    The checkpoint was selected according to the highest validation Dice
-    obtained during training on the Rabbani dataset.
+    This is a zero-shot cross-dataset evaluation:
 
-    No HemoSet image is used during model training. Therefore, this script
-    performs an inverse zero-shot cross-dataset evaluation:
-
-        training dataset: Rabbani Bleed Seg
+        training dataset: Rabbani Bleeding Segmentation
         test dataset: HemoSet
 
-    Dataset-level metrics are computed by summing TP, FP, FN and TN across all
-    test images before calculating the metrics.
+    Dataset-level metrics are computed after summing TP, FP, FN and TN
+    across all HemoSet test images.
 
-    Per-image metrics are computed independently for every test image and
-    reported using mean and standard deviation.
+    Per-image metrics are computed independently for every image and reported
+    using mean and standard deviation.
 
-    Per-video metrics are also reported for every pig included in the HemoSet
-    test split.
+    Per-video metrics are also computed for every video in the HemoSet test
+    split.
 
 usage:
     python -m scripts.rabbani.evaluate_rabbani_on_hemoset
@@ -49,10 +52,15 @@ from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED MODEL CONFIGURATION
+# FIXED SEGMENTATION CONFIGURATION
 # ============================================================
 
-MODEL_NAME = "unet"
+MODEL_NAME = (
+    config_split.RABBANI_EVALUATION_MODEL
+    .strip()
+    .lower()
+)
+
 ENCODER_NAME = "resnet18"
 
 SEGMENTATION_MODE = "multiclass"
@@ -64,24 +72,153 @@ BLOOD_CLASS_INDEX = 1
 BATCH_SIZE = 4
 NUM_WORKERS = 2
 
+DEVICE = torch.device(
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
+)
+
+
+# ============================================================
+# DEEPLABV3+ CONFIGURATION
+# ============================================================
+
+ENCODER_OUTPUT_STRIDE = 16
+DECODER_CHANNELS = 256
+DECODER_ATROUS_RATES = (12, 24, 36)
+UPSAMPLING_FACTOR = 4
+
+
+# ============================================================
+# HARDWARE CONFIGURATION
+# ============================================================
 
 # The installed cuDNN version does not support the Tesla K80 GPU.
 torch.backends.cudnn.enabled = False
 
-# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+# Disable NNPACK to avoid unsupported hardware warnings.
 torch.backends.nnpack.set_flags(False)
 
 
+# ============================================================
+# MODEL HELPERS
+# ============================================================
+
+def create_model_and_checkpoint():
+    """
+    Create the Rabbani-trained architecture selected in config_split.py and
+    return its checkpoint path and display name.
+    """
+    if MODEL_NAME == "unet":
+
+        model = smp.Unet(
+            encoder_name=ENCODER_NAME,
+            encoder_weights=None,
+            in_channels=3,
+            classes=NUM_CLASSES,
+            activation=None,
+        )
+
+        checkpoint_filename = (
+            "unet_multiclass_"
+            "best_dice_bleed_seg_"
+            "resnet18.pth"
+        )
+
+        model_display_name = "U-Net"
+
+    elif MODEL_NAME == "deeplabv3plus":
+
+        model = smp.DeepLabV3Plus(
+            encoder_name=ENCODER_NAME,
+            encoder_weights=None,
+            encoder_output_stride=ENCODER_OUTPUT_STRIDE,
+            decoder_channels=DECODER_CHANNELS,
+            decoder_atrous_rates=DECODER_ATROUS_RATES,
+            in_channels=3,
+            classes=NUM_CLASSES,
+            activation=None,
+            upsampling=UPSAMPLING_FACTOR,
+        )
+
+        checkpoint_filename = (
+            "deeplabv3plus_multiclass_"
+            "best_dice_bleed_seg_"
+            "resnet18.pth"
+        )
+
+        model_display_name = "DeepLabV3+"
+
+    else:
+        raise ValueError(
+            "Unsupported Rabbani evaluation model: "
+            f"{MODEL_NAME}. "
+            "Supported values are 'unet' and 'deeplabv3plus'."
+        )
+
+    checkpoint_path = os.path.join(
+        config_split.MODEL_PRETRAINED_DIR,
+        checkpoint_filename,
+    )
+
+    return (
+        model.to(DEVICE),
+        checkpoint_path,
+        model_display_name,
+    )
+
+
+def load_checkpoint(
+    model,
+    checkpoint_path,
+):
+    """
+    Load either a plain model state dictionary or a structured checkpoint.
+    """
+    if not os.path.isfile(
+        checkpoint_path
+    ):
+        raise FileNotFoundError(
+            "Rabbani checkpoint not found: "
+            f"{checkpoint_path}"
+        )
+
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location=DEVICE,
+    )
+
+    if (
+        isinstance(checkpoint, dict)
+        and "model_state_dict" in checkpoint
+    ):
+        state_dict = checkpoint[
+            "model_state_dict"
+        ]
+
+    else:
+        state_dict = checkpoint
+
+    model.load_state_dict(
+        state_dict
+    )
+
+    model.eval()
+
+
+# ============================================================
+# SEGMENTATION HELPERS
+# ============================================================
+
 def prepare_mask(mask):
     """
-    Convert masks from [B, 1, H, W] to [B, H, W] and prepare them for
-    multiclass evaluation.
+    Convert masks from [B, 1, H, W] to [B, H, W] for multiclass evaluation.
     """
     return torch.squeeze(
         mask,
         dim=1,
     ).long().to(
-        "cuda",
+        DEVICE,
         non_blocking=True,
     )
 
@@ -90,12 +227,16 @@ def get_predictions(logits):
     """
     Convert multiclass logits into the predicted class map.
     """
-    return logits.argmax(
+    return torch.argmax(
+        logits,
         dim=1,
     )
 
 
-def get_segmentation_stats(predictions, mask):
+def get_segmentation_stats(
+    predictions,
+    mask,
+):
     """
     Compute TP, FP, FN and TN independently for every image and class.
     """
@@ -107,7 +248,12 @@ def get_segmentation_stats(predictions, mask):
     )
 
 
-def compute_metrics(tp, fp, fn, tn):
+def compute_metrics(
+    tp,
+    fp,
+    fn,
+    tn,
+):
     """
     Compute IoU, Dice, precision and recall for every class.
     """
@@ -143,8 +289,17 @@ def compute_metrics(tp, fp, fn, tn):
         reduction="none",
     )
 
-    return iou, dice, precision, recall
+    return (
+        iou,
+        dice,
+        precision,
+        recall,
+    )
 
+
+# ============================================================
+# CUDA CHECK
+# ============================================================
 
 if not torch.cuda.is_available():
     raise RuntimeError(
@@ -157,94 +312,105 @@ if not torch.cuda.is_available():
 # MODEL AND RABBANI CHECKPOINT
 # ============================================================
 
-model = smp.Unet(
-    encoder_name=ENCODER_NAME,
-    encoder_weights=None,
-    in_channels=3,
-    classes=NUM_CLASSES,
-).to("cuda")
+(
+    model,
+    checkpoint_path,
+    model_display_name,
+) = create_model_and_checkpoint()
 
 
-checkpoint_path = os.path.join(
-    config_split.MODEL_PRETRAINED_DIR,
-    (
-        "unet_multiclass_"
-        "best_dice_bleed_seg_"
-        "resnet18.pth"
-    ),
+load_checkpoint(
+    model=model,
+    checkpoint_path=checkpoint_path,
 )
-
-
-if not os.path.isfile(checkpoint_path):
-    raise FileNotFoundError(
-        "Rabbani checkpoint not found: "
-        f"{checkpoint_path}"
-    )
-
-
-model.load_state_dict(
-    torch.load(
-        checkpoint_path,
-        map_location="cuda",
-    )
-)
-
-
-model.eval()
 
 
 # ============================================================
 # HEMOSET TEST DATASET
 # ============================================================
 
-# HemoSet images already have the expected spatial resolution.
+# HemoSet images use their native rectified 480 x 640 resolution.
 eval_transform = create_eval_transform()
 
 
-test_ds = CustomImageDataset(
+test_dataset = CustomImageDataset(
     config_split.CSV_TEST_PATH,
     eval_transform,
 )
 
 
-if len(test_ds) == 0:
+if len(test_dataset) == 0:
     raise ValueError(
         "The HemoSet test dataset is empty: "
         f"{config_split.CSV_TEST_PATH}"
     )
 
 
-test_hemo_dl = DataLoader(
-    test_ds,
+test_loader = DataLoader(
+    test_dataset,
     batch_size=BATCH_SIZE,
     num_workers=NUM_WORKERS,
     shuffle=False,
     pin_memory=True,
+    drop_last=False,
+    persistent_workers=(
+        NUM_WORKERS > 0
+    ),
 )
 
 
+# ============================================================
+# CONFIGURATION SUMMARY
+# ============================================================
+
 print(
-    "======== RABBANI TO HEMOSET ZERO-SHOT EVALUATION ========"
+    "======== RABBANI MODEL TO HEMOSET "
+    "ZERO-SHOT EVALUATION ========"
 )
 
 print(
-    f"Model: {MODEL_NAME}"
+    f"Model: {model_display_name}"
+)
+
+print(
+    f"Model configuration value: {MODEL_NAME}"
 )
 
 print(
     f"Encoder: {ENCODER_NAME}"
 )
 
+
+if MODEL_NAME == "deeplabv3plus":
+
+    print(
+        f"Encoder output stride: "
+        f"{ENCODER_OUTPUT_STRIDE}"
+    )
+
+    print(
+        f"Decoder channels: "
+        f"{DECODER_CHANNELS}"
+    )
+
+    print(
+        f"Decoder atrous rates: "
+        f"{DECODER_ATROUS_RATES}"
+    )
+
+
 print(
-    f"Segmentation mode: {SEGMENTATION_MODE}"
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
 )
 
 print(
-    f"Output classes: {NUM_CLASSES}"
+    f"Number of classes: "
+    f"{NUM_CLASSES}"
 )
 
 print(
-    "Training dataset: Rabbani Bleed Seg"
+    "Training dataset: Rabbani Bleeding Segmentation"
 )
 
 print(
@@ -260,7 +426,11 @@ print(
 )
 
 print(
-    f"Test images: {len(test_ds)}"
+    f"Test images: {len(test_dataset)}"
+)
+
+print(
+    f"Test batches: {len(test_loader)}"
 )
 
 
@@ -274,38 +444,41 @@ fn_batches = []
 tn_batches = []
 
 
-with torch.no_grad():
+with torch.inference_mode():
 
     for batch_index, (
-        test_img,
-        test_mask,
-    ) in enumerate(test_hemo_dl):
+        test_images,
+        test_masks,
+    ) in enumerate(test_loader):
 
-        test_img = test_img.to(
-            "cuda",
+        test_images = test_images.to(
+            DEVICE,
             non_blocking=True,
         )
 
-        test_mask = prepare_mask(
-            test_mask
+        test_masks = prepare_mask(
+            test_masks
         )
 
         logits = model(
-            test_img
+            test_images
         )
 
         predictions = get_predictions(
             logits
         )
 
-        batch_tp, batch_fp, batch_fn, batch_tn = (
-            get_segmentation_stats(
-                predictions,
-                test_mask,
-            )
+        (
+            batch_tp,
+            batch_fp,
+            batch_fn,
+            batch_tn,
+        ) = get_segmentation_stats(
+            predictions,
+            test_masks,
         )
 
-        # Preserve one row for every test image.
+        # Preserve one row for every HemoSet test image.
         tp_batches.append(
             batch_tp.cpu()
         )
@@ -325,11 +498,11 @@ with torch.no_grad():
         if batch_index % 50 == 0:
             print(
                 f"Evaluated batch "
-                f"{batch_index}/{len(test_hemo_dl)}"
+                f"{batch_index}/{len(test_loader)}"
             )
 
 
-# Join all batches while keeping every image separate.
+# Join all batches while keeping every test image separate.
 tp = torch.cat(
     tp_batches,
     dim=0,
@@ -404,14 +577,22 @@ std_dice = dice_per_image.std(
 ).item()
 
 
-mean_precision = precision_per_image.mean().item()
+mean_precision = (
+    precision_per_image
+    .mean()
+    .item()
+)
 
 std_precision = precision_per_image.std(
     correction=0,
 ).item()
 
 
-mean_recall = recall_per_image.mean().item()
+mean_recall = (
+    recall_per_image
+    .mean()
+    .item()
+)
 
 std_recall = recall_per_image.std(
     correction=0,
@@ -422,8 +603,8 @@ std_recall = recall_per_image.std(
 # DATASET-LEVEL METRICS
 # ============================================================
 
-# Sum the confusion statistics across all HemoSet test images while
-# preserving the class dimension.
+# Sum confusion statistics across all HemoSet test images while preserving
+# the class dimension.
 global_tp = tp.sum(
     dim=0,
 )
@@ -497,6 +678,7 @@ empty_images_mask = (
 
 total_images = iou_per_image.numel()
 
+
 images_with_blood = (
     images_with_blood_mask
     .sum()
@@ -531,11 +713,13 @@ print(
 )
 
 print(
-    f"Images with blood: {images_with_blood}"
+    f"Images with blood: "
+    f"{images_with_blood}"
 )
 
 print(
-    f"Images without blood: {empty_images}"
+    f"Images without blood: "
+    f"{empty_images}"
 )
 
 
@@ -558,14 +742,17 @@ print(
 # PER-VIDEO HEMOSET METRICS
 # ============================================================
 
-if config_split.VIDEOID_STRING not in test_ds.csv_dirs.columns:
+if (
+    config_split.VIDEOID_STRING
+    not in test_dataset.csv_dirs.columns
+):
     raise KeyError(
         "Video ID column not found in the HemoSet test CSV: "
         f"{config_split.VIDEOID_STRING}"
     )
 
 
-test_video_ids = test_ds.csv_dirs[
+test_video_ids = test_dataset.csv_dirs[
     config_split.VIDEOID_STRING
 ].astype(str)
 
@@ -587,16 +774,24 @@ print(
 # Use the order defined for the HemoSet test split.
 for video_id in config_split.TEST_VIDEO_ID:
 
+    video_id_string = str(
+        video_id
+    )
+
     video_mask = torch.tensor(
         (
-            test_video_ids == video_id
+            test_video_ids
+            == video_id_string
         ).to_numpy(),
         dtype=torch.bool,
     )
 
-    video_image_count = video_mask.sum().item()
+    video_image_count = (
+        video_mask.sum().item()
+    )
 
     if video_image_count == 0:
+
         print(
             f"\nVideo: {video_id}"
         )
@@ -608,7 +803,7 @@ for video_id in config_split.TEST_VIDEO_ID:
         continue
 
 
-    # Per-image metrics for the current video.
+    # Per-image metrics for the current HemoSet video.
     video_iou_per_image = iou_per_image[
         video_mask
     ]
@@ -626,7 +821,7 @@ for video_id in config_split.TEST_VIDEO_ID:
     ]
 
 
-    # Dataset-level confusion statistics for the current video.
+    # Dataset-level confusion statistics for the current HemoSet video.
     video_tp = tp[
         video_mask
     ].sum(
@@ -673,9 +868,11 @@ for video_id in config_split.TEST_VIDEO_ID:
         BLOOD_CLASS_INDEX
     ].item()
 
-    video_global_precision = video_precision_classes[
-        BLOOD_CLASS_INDEX
-    ].item()
+    video_global_precision = (
+        video_precision_classes[
+            BLOOD_CLASS_INDEX
+        ].item()
+    )
 
     video_global_recall = video_recall_classes[
         BLOOD_CLASS_INDEX
@@ -767,19 +964,23 @@ for video_id in config_split.TEST_VIDEO_ID:
     )
 
     print(
-        f"Global IoU:       {video_global_iou:.4f}"
+        f"Global IoU:       "
+        f"{video_global_iou:.4f}"
     )
 
     print(
-        f"Global Dice:      {video_global_dice:.4f}"
+        f"Global Dice:      "
+        f"{video_global_dice:.4f}"
     )
 
     print(
-        f"Global Precision: {video_global_precision:.4f}"
+        f"Global Precision: "
+        f"{video_global_precision:.4f}"
     )
 
     print(
-        f"Global Recall:    {video_global_recall:.4f}"
+        f"Global Recall:    "
+        f"{video_global_recall:.4f}"
     )
 
 
@@ -788,11 +989,12 @@ for video_id in config_split.TEST_VIDEO_ID:
 # ============================================================
 
 print(
-    "\n======== RABBANI TO HEMOSET ZERO-SHOT RESULTS ========"
+    "\n======== RABBANI MODEL TO HEMOSET "
+    "ZERO-SHOT RESULTS ========"
 )
 
 print(
-    f"Model: {MODEL_NAME}"
+    f"Model: {model_display_name}"
 )
 
 print(
@@ -800,11 +1002,12 @@ print(
 )
 
 print(
-    f"Segmentation mode: {SEGMENTATION_MODE}"
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
 )
 
 print(
-    "Training dataset: Rabbani Bleed Seg"
+    "Training dataset: Rabbani Bleeding Segmentation"
 )
 
 print(
