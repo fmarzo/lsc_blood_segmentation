@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=deep_rab_18_lsc
+#SBATCH --job-name=deep_hemo_18_lsc
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -12,12 +12,12 @@
 
 source /homes/$USER/cvcs2026/venv/bin/activate
 
-script_file="train_deeplabv3plus_rabbani"
+script_file="train_deeplabv3plus_hemoset"
 
 echo "${script_file} execution"
 
 cd ./lab || exit 1
 
-python -m scripts.rabbani.${script_file} "$1"
+python -m scripts.${script_file} "$1"
 
 echo "Python script completed."

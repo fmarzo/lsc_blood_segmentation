@@ -620,7 +620,7 @@ def main():
         (
             "deeplabv3plus_multiclass_"
             "best_dice_bleed_seg_"
-            "resnet18.pth"
+            "resnet18_rab.pth"
         ),
     )
 

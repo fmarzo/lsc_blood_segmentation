@@ -61,5 +61,5 @@ MODEL_TO_EVALUATE = "unet_plus_plus" # "unet_plus_plus" or "unet"
 ENCODER_NAME = "resnet34"
 
 # EVALUATION MODEL PARAM FOR RABBANI, USED ALSO FOR ZERO SHOT ON HEMOSET SET TEST
-RABBANI_EVALUATION_MODEL = "unet" # "deeplabv3plus" or "unet" 
+RABBANI_EVALUATION_MODEL = "deeplabv3plus" # "deeplabv3plus" or "unet" 
 # The encoder is always a resnet18

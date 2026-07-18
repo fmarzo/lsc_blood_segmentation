@@ -15,10 +15,35 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate Model on Hemoset",
+            "name": "Python Debugger: Evaluate Unet Model on Hemoset",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.evaluate_model",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Train DeepLabv3plus Model on Hemoset",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.train_deeplabv3plus_hemoset",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}",
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate DeepLabv3plus Model on Hemoset",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.evaluate_deeplabv3plus_hemoset",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
@@ -65,7 +90,7 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate Model on Rabbani",
+            "name": "Python Debugger: Evaluate Unet and DeepLabv3plus Model on Rabbani",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.rabbani.evaluate_model_rabbani",

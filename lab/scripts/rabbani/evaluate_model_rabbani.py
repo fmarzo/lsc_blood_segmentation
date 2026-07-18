@@ -131,7 +131,7 @@ def create_model_and_checkpoint():
         checkpoint_filename = (
             "deeplabv3plus_multiclass_"
             "best_dice_bleed_seg_"
-            "resnet18.pth"
+            "resnet18_rab.pth"
         )
 
     else:

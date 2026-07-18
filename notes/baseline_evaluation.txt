@@ -136,6 +136,100 @@ Dice: 0.6956 +/- 0.2611
 
 --------------------------------------------------------------------------------------------------------------------
 
+|DEEPLABV3PLUS RESNET18 MULTICLASS ON HEMOSET|
+
+======== HEMOSET DEEPLABV3+ EVALUATION ========
+Model: DeepLabV3+
+Encoder: resnet18
+Encoder output stride: 16
+Decoder channels: 256
+Decoder atrous rates: (12, 24, 36)
+Segmentation mode: multiclass
+Number of output classes: 2
+Training loss: standard multiclass CrossEntropyLoss
+Binary BCE loss: no
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_multiclass_best_resnet18_hemo.pth
+Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits/test.csv
+Test images: 102
+Test batches: 26
+Input batch shape: (4, 3, 480, 640)
+Output batch shape: (4, 2, 480, 640)
+Mask batch shape: (4, 480, 640)
+Evaluated batch 0/26
+
+----- Test image composition -----
+Total images: 102
+Images with blood: 102
+Images without blood: 0
+
+----- Empty image predictions -----
+Correctly predicted as empty: 0
+Empty images with false-positive blood: 0
+
+----- Test images per video -----
+video_id
+pig3     50
+pig6     32
+pig11    20
+Name: count, dtype: int64
+
+----- Per-video blood metrics -----
+
+Video: pig3
+Images: 50
+Per-image IoU:       0.8036 +/- 0.0289
+Per-image Dice:      0.8908 +/- 0.0180
+Per-image Precision: 0.8650 +/- 0.0281
+Per-image Recall:    0.9193 +/- 0.0268
+Global IoU:       0.8032
+Global Dice:      0.8909
+Global Precision: 0.8620
+Global Recall:    0.9218
+
+Video: pig6
+Images: 32
+Per-image IoU:       0.4792 +/- 0.2329
+Per-image Dice:      0.6100 +/- 0.2465
+Per-image Precision: 0.8172 +/- 0.1467
+Per-image Recall:    0.5456 +/- 0.2503
+Global IoU:       0.6191
+Global Dice:      0.7648
+Global Precision: 0.8562
+Global Recall:    0.6910
+
+Video: pig11
+Images: 20
+Per-image IoU:       0.4516 +/- 0.1033
+Per-image Dice:      0.6148 +/- 0.1045
+Per-image Precision: 0.5377 +/- 0.0848
+Per-image Recall:    0.7204 +/- 0.1385
+Global IoU:       0.4743
+Global Dice:      0.6434
+Global Precision: 0.5593
+Global Recall:    0.7572
+
+======== HEMOSET DEEPLABV3+ TEST RESULTS ========
+Model: DeepLabV3+
+Encoder: resnet18
+Segmentation mode: multiclass
+Training loss: standard multiclass CrossEntropyLoss
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_multiclass_best_resnet18_hemo.pth
+Test images: 102
+
+----- Dataset-level blood metrics -----
+IoU:       0.6992
+Dice:      0.8230
+Precision: 0.7988
+Recall:    0.8487
+
+----- Per-image blood metrics -----
+IoU:       0.6328 +/- 0.2183
+Dice:      0.7486 +/- 0.2020
+
+
+--------------------------------------------------------------------------------------------------------------------
+
+
 |UNET BINARY RESNET18|
 
 ----- Per-video per-image metrics -----
@@ -300,7 +394,7 @@ Recall:    0.8112 +/- 0.2110
 
 --------------------------------------------------------------------------------------------------------------------
 
-|DEEPLABV3PLUS RESNET18 ON RABBANI| 
+|DEEPLABV3PLUS RESNET18 MULTICLASS ON RABBANI| 
 
 ======== RABBANI MODEL EVALUATION ========
 Model: deeplabv3plus
@@ -350,6 +444,7 @@ Recall:    0.8065 +/- 0.2127
 
 |SEgDino ON RABBANI|
 
+----- Per-image blood metrics -----
 IoU 0.4293
 Dice 0.5476
 
