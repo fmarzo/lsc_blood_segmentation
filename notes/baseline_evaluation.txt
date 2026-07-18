@@ -1,271 +1,15 @@
-EVALUATION RESULTS OF OUR BASELINE MODELS ON A TEST SET COMPOSED BY [PIG3, PIG5, PIG7]
+EVALUATION RESULTS OF OUR BASELINE MODELS ON A TEST SET COMPOSED BY [PIG3, PIG6, PIG11]
 
 ----- Test images per video -----
 video_id
-pig5    131
-pig7     64
 pig3     50
-Name: count, dtype: int64
-
------ Test image composition -----
-Total images: 245
-Images with blood: 245
-Images without blood: 0
-
------ Empty image predictions -----
-Correctly predicted as empty: 0
-Empty images with false-positive blood: 0
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET MULTICLASS RESNET18|
-
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8436 +/- 0.0236
-Dice: 0.9150 +/- 0.0142
-Global IoU:  0.8456
-Global Dice: 0.9163
-
-Video: pig5
-Images: 131
-IoU:  0.5398 +/- 0.2285
-Dice: 0.6696 +/- 0.2149
-Global IoU:  0.6334
-Global Dice: 0.7756
-
-Video: pig7
-Images: 64
-IoU:  0.6409 +/- 0.1577
-Dice: 0.7701 +/- 0.1148
-Global IoU:  0.7090
-Global Dice: 0.8297
-
-Model: unet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_resnet18.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7323
-Dice: 0.8455
-
------ Per-image metrics -----
-IoU:  0.6282 +/- 0.2196
-Dice: 0.7459 +/- 0.1931
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET MULTICLASS RESNET34|
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8233 +/- 0.0366
-Dice: 0.9026 +/- 0.0224
-Global IoU:  0.8243
-Global Dice: 0.9037
-
-Video: pig5
-Images: 131
-IoU:  0.5436 +/- 0.2198
-Dice: 0.6756 +/- 0.2037
-Global IoU:  0.6546
-Global Dice: 0.7913
-
-Video: pig7
-Images: 64
-IoU:  0.6274 +/- 0.1630
-Dice: 0.7588 +/- 0.1223
-Global IoU:  0.7143
-Global Dice: 0.8333
-
-Model: unet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_resnet34.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7354
-Dice: 0.8475
-
------ Per-image metrics -----
-IoU:  0.6226 +/- 0.2112
-Dice: 0.7437 +/- 0.1841
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET PLUS PLUS MULTICLASS RESNET18|
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8030 +/- 0.0354
-Dice: 0.8903 +/- 0.0222
-Global IoU:  0.8032
-Global Dice: 0.8909
-
-Video: pig5
-Images: 131
-IoU:  0.5326 +/- 0.2227
-Dice: 0.6642 +/- 0.2152
-Global IoU:  0.6548
-Global Dice: 0.7914
-
-Video: pig7
-Images: 64
-IoU:  0.6485 +/- 0.1741
-Dice: 0.7733 +/- 0.1278
-Global IoU:  0.7380
-Global Dice: 0.8493
-
-Model: unet_plus_plus
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_multiclass_best_resnet18.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7368
-Dice: 0.8485
-
------ Per-image metrics -----
-IoU:  0.6181 +/- 0.2141
-Dice: 0.7388 +/- 0.1926
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET BINARY RESNET18|
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8294 +/- 0.0328
-Dice: 0.9064 +/- 0.0201
-Global IoU:  0.8316
-Global Dice: 0.9081
-
-Video: pig5
-Images: 131
-IoU:  0.5402 +/- 0.2375
-Dice: 0.6675 +/- 0.2233
-Global IoU:  0.6673
-Global Dice: 0.8004
-
-Video: pig7
-Images: 64
-IoU:  0.6684 +/- 0.1397
-Dice: 0.7928 +/- 0.1006
-Global IoU:  0.7402
-Global Dice: 0.8507
-
-Model: unet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_binary_best_resnet18.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7502
-Dice: 0.8573
-
------ Per-image metrics -----
-IoU:  0.6327 +/- 0.2197
-Dice: 0.7490 +/- 0.1962
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET BINARY RESNET34|
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8312 +/- 0.0348
-Dice: 0.9074 +/- 0.0212
-Global IoU:  0.8337
-Global Dice: 0.9093
-
-Video: pig5
-Images: 131
-IoU:  0.5407 +/- 0.2353
-Dice: 0.6684 +/- 0.2212
-Global IoU:  0.6597
-Global Dice: 0.7949
-
-Video: pig7
-Images: 64
-IoU:  0.6662 +/- 0.1552
-Dice: 0.7892 +/- 0.1125
-Global IoU:  0.7404
-Global Dice: 0.8508
-
-Model: unet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_binary_best_resnet34.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7471
-Dice: 0.8553
-
------ Per-image metrics -----
-IoU:  0.6328 +/- 0.2214
-Dice: 0.7488 +/- 0.1964
-
---------------------------------------------------------------------------------------------------------------------
-
-|UNET PLUS PLUS BINARY RESNET18|
-
------ Per-video per-image metrics -----
-
-Video: pig3
-Images: 50
-IoU:  0.8279 +/- 0.0423
-Dice: 0.9053 +/- 0.0259
-Global IoU:  0.8307
-Global Dice: 0.9075
-
-Video: pig5
-Images: 131
-IoU:  0.5406 +/- 0.2443
-Dice: 0.6652 +/- 0.2335
-Global IoU:  0.6651
-Global Dice: 0.7989
-
-Video: pig7
-Images: 64
-IoU:  0.6439 +/- 0.1459
-Dice: 0.7738 +/- 0.1084
-Global IoU:  0.7111
-Global Dice: 0.8311
-
-Model: unet_plus_plus
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_resnet18.pth
-Test images: 245
-
------ Dataset-level metrics -----
-IoU:  0.7396
-Dice: 0.8503
-
------ Per-image metrics -----
-IoU:  0.6262 +/- 0.2239
-Dice: 0.7426 +/- 0.2030
-
---------------------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------------------
-
-EVALUATION RESULTS OF OUR BASELINE MODELS ON A TEST SET COMPOSED BY [PIG4, PIG6, PIG11]
-
------ Test images per video -----
-video_id
-pig4     39
 pig6     32
 pig11    20
 Name: count, dtype: int64
 
 ----- Test image composition -----
-Total images: 91
-Images with blood: 91
+Total images: 102
+Images with blood: 102
 Images without blood: 0
 
 ----- Empty image predictions -----
@@ -278,38 +22,38 @@ Empty images with false-positive blood: 0
 
 ----- Per-video per-image metrics -----
 
-Video: pig4
-Images: 39
-IoU:  0.4107 +/- 0.1019
-Dice: 0.5739 +/- 0.1173
-Global IoU:  0.4010
-Global Dice: 0.5724
+Video: pig3
+Images: 50
+IoU:  0.8280 +/- 0.0402
+Dice: 0.9054 +/- 0.0247
+Global IoU:  0.8315
+Global Dice: 0.9080
 
 Video: pig6
 Images: 32
-IoU:  0.5954 +/- 0.2310
-Dice: 0.7113 +/- 0.2476
-Global IoU:  0.7109
-Global Dice: 0.8310
+IoU:  0.5513 +/- 0.2289
+Dice: 0.6755 +/- 0.2445
+Global IoU:  0.6818
+Global Dice: 0.8108
 
 Video: pig11
 Images: 20
-IoU:  0.4094 +/- 0.1065
-Dice: 0.5724 +/- 0.1145
-Global IoU:  0.4226
-Global Dice: 0.5942
+IoU:  0.3031 +/- 0.1794
+Dice: 0.4328 +/- 0.2364
+Global IoU:  0.3419
+Global Dice: 0.5096
 
 Model: unet
 Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_resnet18.pth
-Test images: 91
+Test images: 102
 
 ----- Dataset-level metrics -----
-IoU:  0.5210
-Dice: 0.6851
+IoU:  0.6716
+Dice: 0.8036 
 
 ----- Per-image metrics -----
-IoU:  0.4754 +/- 0.1831
-Dice: 0.6219 +/- 0.1862
+IoU:  0.6383 +/- 0.2561
+Dice: 0.7406 +/- 0.2514
 
 --------------------------------------------------------------------------------------------------------------------
 
@@ -317,38 +61,39 @@ Dice: 0.6219 +/- 0.1862
 
 ----- Per-video per-image metrics -----
 
-Video: pig4
-Images: 39
-IoU:  0.3490 +/- 0.1026
-Dice: 0.5082 +/- 0.1235
-Global IoU:  0.3349
-Global Dice: 0.5018
+Video: pig3
+Images: 50
+IoU:  0.7931 +/- 0.0415
+Dice: 0.8840 +/- 0.0261
+Global IoU:  0.7905
+Global Dice: 0.8830
 
 Video: pig6
 Images: 32
-IoU:  0.5737 +/- 0.1963
-Dice: 0.7077 +/- 0.1742
-Global IoU:  0.6865
-Global Dice: 0.8141
+IoU:  0.5589 +/- 0.2289
+Dice: 0.6847 +/- 0.2249
+Global IoU:  0.6656
+Global Dice: 0.7992
 
 Video: pig11
 Images: 20
-IoU:  0.4641 +/- 0.1053
-Dice: 0.6264 +/- 0.1057
-Global IoU:  0.4818
-Global Dice: 0.6503
+IoU:  0.3873 +/- 0.0719
+Dice: 0.5544 +/- 0.0768
+Global IoU:  0.3968
+Global Dice: 0.5682
 
 Model: unet
 Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_resnet34.pth
-Test images: 91
+Test images: 102
 
 ----- Dataset-level metrics -----
-IoU:  0.5289
-Dice: 0.6919
+IoU:  0.6598
+Dice: 0.7950
 
 ----- Per-image metrics -----
-IoU:  0.4533 +/- 0.1740
-Dice: 0.6043 +/- 0.1658
+IoU:  0.6401 +/- 0.2106
+Dice: 0.7569 +/- 0.1870
+
 
 --------------------------------------------------------------------------------------------------------------------
 
@@ -356,38 +101,38 @@ Dice: 0.6043 +/- 0.1658
 
 ----- Per-video per-image metrics -----
 
-Video: pig4
-Images: 39
-IoU:  0.1197 +/- 0.1003
-Dice: 0.2008 +/- 0.1462
-Global IoU:  0.1151
-Global Dice: 0.2065
+Video: pig3
+Images: 50
+IoU:  0.7921 +/- 0.0369
+Dice: 0.8835 +/- 0.0237
+Global IoU:  0.7951
+Global Dice: 0.8858
 
 Video: pig6
 Images: 32
-IoU:  0.5858 +/- 0.2411
-Dice: 0.7010 +/- 0.2538
-Global IoU:  0.7234
-Global Dice: 0.8395
+IoU:  0.3864 +/- 0.2783
+Dice: 0.4982 +/- 0.2986
+Global IoU:  0.5632
+Global Dice: 0.7205
 
 Video: pig11
 Images: 20
-IoU:  0.4737 +/- 0.1798
-Dice: 0.6196 +/- 0.1920
-Global IoU:  0.5182
-Global Dice: 0.6826
+IoU:  0.3893 +/- 0.1517
+Dice: 0.5418 +/- 0.1714
+Global IoU:  0.4188
+Global Dice: 0.5903
 
 Model: unet_plus_plus
 Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_multiclass_best_resnet18.pth
-Test images: 91
+Test images: 102
 
 ----- Dataset-level metrics -----
-IoU:  0.5189
-Dice: 0.6832
+IoU:  0.6857
+Dice: 0.8136
 
 ----- Per-image metrics -----
-IoU:  0.3614 +/- 0.2781
-Dice: 0.4687 +/- 0.3077
+IoU:  0.5859 +/- 0.2653
+Dice: 0.6956 +/- 0.2611
 
 --------------------------------------------------------------------------------------------------------------------
 
@@ -395,115 +140,175 @@ Dice: 0.4687 +/- 0.3077
 
 ----- Per-video per-image metrics -----
 
-Video: pig4
-Images: 39
-IoU:  0.3491 +/- 0.1321
-Dice: 0.5019 +/- 0.1611
-Global IoU:  0.3474
-Global Dice: 0.5156
+Video: pig3
+Images: 50
+IoU:  0.8236 +/- 0.0355
+Dice: 0.9028 +/- 0.0217
+Global IoU:  0.8237
+Global Dice: 0.9033
 
 Video: pig6
 Images: 32
-IoU:  0.6065 +/- 0.2446
-Dice: 0.7167 +/- 0.2569
-Global IoU:  0.7363
-Global Dice: 0.8481
+IoU:  0.5428 +/- 0.2321
+Dice: 0.6677 +/- 0.2450
+Global IoU:  0.6604
+Global Dice: 0.7955
 
 Video: pig11
 Images: 20
-IoU:  0.5243 +/- 0.1657
-Dice: 0.6695 +/- 0.1712
-Global IoU:  0.5594
-Global Dice: 0.7175
+IoU:  0.4634 +/- 0.0951
+Dice: 0.6270 +/- 0.0982
+Global IoU:  0.4836
+Global Dice: 0.6519
 
 Model: unet
 Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_binary_best_resnet18.pth
-Test images: 91
+Test images: 102
 
 ----- Dataset-level metrics -----
-IoU:  0.5850
-Dice: 0.7381
+IoU:  0.7153
+Dice: 0.8340
 
 ----- Per-image metrics -----
-IoU:  0.4781 +/- 0.2190
-Dice: 0.6143 +/- 0.2248
+IoU:  0.6649 +/- 0.2104
+Dice: 0.7750 +/- 0.1920
 
+--------------------------------------------------------------------------------------------------------------------
+
+|UNET PLUS PLUS BINARY RESNET18|
+
+
+----- Per-video per-image metrics -----
+
+Video: pig3
+Images: 50
+IoU:  0.8219 +/- 0.0387
+Dice: 0.9018 +/- 0.0236
+Global IoU:  0.8208
+Global Dice: 0.9016
+
+Video: pig6
+Images: 32
+IoU:  0.5546 +/- 0.2302
+Dice: 0.6775 +/- 0.2480
+Global IoU:  0.6833
+Global Dice: 0.8119
+
+Video: pig11
+Images: 20
+IoU:  0.4562 +/- 0.1163
+Dice: 0.6170 +/- 0.1196
+Global IoU:  0.4825
+Global Dice: 0.6510
+
+Model: unet_plus_plus
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_resnet18.pth
+Test images: 102
+
+----- Dataset-level metrics -----
+IoU:  0.7197
+Dice: 0.8370
+
+----- Per-image metrics -----
+IoU:  0.6663 +/- 0.2109
+Dice: 0.7756 +/- 0.1952
 --------------------------------------------------------------------------------------------------------------------
 
 |UNET BINARY RESNET34|
 
 ----- Per-video per-image metrics -----
 
-Video: pig4
-Images: 39
-IoU:  0.3093 +/- 0.1544
-Dice: 0.4507 +/- 0.1874
-Global IoU:  0.2808
-Global Dice: 0.4384
+Video: pig3
+Images: 50
+IoU:  0.8226 +/- 0.0292
+Dice: 0.9024 +/- 0.0179
+Global IoU:  0.8229
+Global Dice: 0.9029
 
 Video: pig6
 Images: 32
-IoU:  0.5534 +/- 0.2601
-Dice: 0.6692 +/- 0.2643
-Global IoU:  0.6847
-Global Dice: 0.8128
+IoU:  0.5260 +/- 0.2091
+Dice: 0.6584 +/- 0.2313
+Global IoU:  0.6362
+Global Dice: 0.7777
 
 Video: pig11
 Images: 20
-IoU:  0.5104 +/- 0.1507
-Dice: 0.6606 +/- 0.1531
-Global IoU:  0.5337
-Global Dice: 0.6960
+IoU:  0.4615 +/- 0.1142
+Dice: 0.6226 +/- 0.1155
+Global IoU:  0.4764
+Global Dice: 0.6453
 
 Model: unet
 Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_binary_best_resnet34.pth
-Test images: 91
+Test images: 102
 
 ----- Dataset-level metrics -----
-IoU:  0.5509
-Dice: 0.7104
+IoU:  0.7059
+Dice: 0.8276
 
 ----- Per-image metrics -----
-IoU:  0.4394 +/- 0.2279
-Dice: 0.5737 +/- 0.2369
+IoU:  0.6587 +/- 0.2074
+Dice: 0.7710 +/- 0.1906
 
 --------------------------------------------------------------------------------------------------------------------
 
-|UNET PLUS PLUS BINARY RESNET18|
+|UNET RESNET18 ON RABBANI| è STATA RIALLENATA IERI SERA E VA SOLO RITESTATA
 
------ Per-video per-image metrics -----
+======== RABBANI MODEL EVALUATION ========
+Model: unet
+Encoder: resnet18
+Segmentation mode: multiclass
+Number of classes: 2
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
+Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits_v1p0/test.csv
+Test images: 113
+Evaluated batch 0/29
 
-Video: pig4
-Images: 39
-IoU:  0.2947 +/- 0.1743
-Dice: 0.4266 +/- 0.2148
-Global IoU:  0.2788
-Global Dice: 0.4360
+----- Test image composition -----
+Total images: 113
+Images with blood: 113
+Images without blood: 0
 
-Video: pig6
-Images: 32
-IoU:  0.5878 +/- 0.2439
-Dice: 0.7020 +/- 0.2552
-Global IoU:  0.7137
-Global Dice: 0.8329
+----- Empty image predictions -----
+Correctly predicted as empty: 0
+Empty images with false-positive blood: 0
 
-Video: pig11
-Images: 20
-IoU:  0.5083 +/- 0.1106
-Dice: 0.6664 +/- 0.1035
-Global IoU:  0.5313
-Global Dice: 0.6939
+----- Test images per dataset identifier -----
+video_id
+bleeding_segmentation_v1p0    113
+Name: count, dtype: int64
 
-Model: unet_plus_plus
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_resnet18.pth
-Test images: 91
+======== RABBANI TEST RESULTS ========
+Model: unet
+Encoder: resnet18
+Segmentation mode: multiclass
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
+Test images: 113
 
------ Dataset-level metrics -----
-IoU:  0.5552
-Dice: 0.7140
+----- Dataset-level blood metrics -----
+IoU:       0.5678
+Dice:      0.7243
+Precision: 0.7480
+Recall:    0.7021
 
------ Per-image metrics -----
-IoU:  0.4447 +/- 0.2332
-Dice: 0.5762 +/- 0.2490
+----- Per-image blood metrics -----
+IoU:       0.5385 +/- 0.2655
+Dice:      0.6517 +/- 0.2839
+Precision: 0.7776 +/- 0.2113
+Recall:    0.6758 +/- 0.3056
 
+--------------------------------------------------------------------------------------------------------------------
+
+|SEgDino ON RABBANI|
+
+IoU 0.4293
+Dice 0.5476
+
+--------------------------------------------------------------------------------------------------------------------
+
+|ZERO SHOT UNET RESNET18 TRAINATA SU HEMOSET MA TEST CON RABBANI E VICEVERSA|
+
+
+--------------------------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------

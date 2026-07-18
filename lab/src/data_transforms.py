@@ -5,18 +5,27 @@ brief:
     This module defines training and evaluation transformations for HemoSet
     and the Rabbani Bleed Seg dataset.
 
-    The training augmentation is designed to follow the augmentation strategy
-    reported in the HemoSet paper as closely as possible:
+    HemoSet images retain their original rectified resolution of 640x480
+    pixels, represented in torchvision as (height, width) = (480, 640).
+
+    The Rabbani paper reports a resolution of 854x480 pixels. Rabbani images
+    are therefore transformed to (480, 864), which preserves approximately
+    the original 16:9 aspect ratio while making both dimensions divisible
+    by 32 for the U-Net encoder-decoder path.
+
+    The HemoSet training augmentation follows the operations reported in the
+    HemoSet paper:
 
     - random crops
     - brightness jitter
 
-    The paper does not specify the exact crop size, crop probability,
-    brightness range or brightness probability. Therefore, the numerical
-    values used here are conservative implementation choices.
+    The paper does not specify the exact crop range, brightness range or
+    application probability. The numerical values used here are conservative
+    implementation choices.
 
-    Evaluation transformations are deterministic and do not include data
-    augmentation.
+    The same crop and brightness augmentation is currently used for Rabbani
+    to keep the image-based experiments comparable. Evaluation transforms are
+    deterministic and do not include augmentation.
 """
 
 import torch
@@ -42,34 +51,47 @@ IMAGENET_STD = (
 
 
 # ============================================================
-# COMMON IMAGE SIZE
+# DATASET-SPECIFIC IMAGE SIZES
 # ============================================================
 
-IMAGE_SIZE = (
+# HemoSet is rectified to 640x480 pixels.
+# Torchvision uses the order (height, width).
+HEMOSET_IMAGE_SIZE = (
     480,
     640,
 )
 
+# The Rabbani paper reports 854x480 pixels.
+# Width 864 is used because it is close to 854 and divisible by 32.
+RABBANI_IMAGE_SIZE = (
+    480,
+    864,
+)
+
 
 # ============================================================
-# PAPER-LIKE AUGMENTATION PARAMETERS
+# AUGMENTATION PARAMETERS
 # ============================================================
 
-# The HemoSet paper reports random crops but does not specify their size.
-# This interval preserves between 80% and 100% of the original image area.
+# Preserve between 80% and 100% of the original image area.
 CROP_SCALE = (
     0.80,
     1.00,
 )
 
-# Keep the original 4:3 aspect ratio.
-CROP_RATIO = (
-    4 / 3,
-    4 / 3,
+# Preserve the original HemoSet 4:3 aspect ratio.
+HEMOSET_CROP_RATIO = (
+    HEMOSET_IMAGE_SIZE[1] / HEMOSET_IMAGE_SIZE[0],
+    HEMOSET_IMAGE_SIZE[1] / HEMOSET_IMAGE_SIZE[0],
 )
 
-# The paper reports brightness jitter but does not specify its range.
-# This moderate interval avoids excessively dark or bright samples.
+# Preserve approximately the original Rabbani 16:9 aspect ratio.
+RABBANI_CROP_RATIO = (
+    RABBANI_IMAGE_SIZE[1] / RABBANI_IMAGE_SIZE[0],
+    RABBANI_IMAGE_SIZE[1] / RABBANI_IMAGE_SIZE[0],
+)
+
+# Moderate brightness jitter.
 BRIGHTNESS_RANGE = (
     0.80,
     1.20,
@@ -78,31 +100,33 @@ BRIGHTNESS_RANGE = (
 BRIGHTNESS_PROBABILITY = 0.80
 
 
-def create_paper_like_train_transform():
+def create_crop_brightness_train_transform(
+    image_size,
+    crop_ratio,
+):
     """
-    Create the common paper-like training transformation.
+    Create a training transformation using random crop and brightness jitter.
 
-    RandomResizedCrop performs a random spatial crop and resizes the result to
-    the fixed network input resolution.
+    RandomResizedCrop applies the same geometric transformation to the image
+    and mask when the mask is represented as torchvision.tv_tensors.Mask.
 
-    When the dataset returns the segmentation mask as a torchvision
-    tv_tensors.Mask, torchvision v2 automatically applies the same geometric
-    transformation to image and mask while using nearest-neighbor
-    interpolation for the mask.
+    Torchvision v2 automatically uses the appropriate interpolation for the
+    segmentation mask, preserving its discrete class values.
 
-    ColorJitter is applied only to the image and does not modify the mask.
+    Brightness jitter is applied only to the input image and does not modify
+    the segmentation mask.
     """
     return v2.Compose([
 
-        # Randomly change framing, position and apparent blood size.
+        # Randomly modify framing, position and apparent blood size.
         v2.RandomResizedCrop(
-            size=IMAGE_SIZE,
+            size=image_size,
             scale=CROP_SCALE,
-            ratio=CROP_RATIO,
+            ratio=crop_ratio,
             antialias=True,
         ),
 
-        # Simulate moderate illumination differences between frames.
+        # Simulate moderate illumination differences.
         v2.RandomApply(
             [
                 v2.ColorJitter(
@@ -113,13 +137,13 @@ def create_paper_like_train_transform():
         ),
 
         # Convert image values to floating point in the [0, 1] range.
-        # Mask class values remain integer labels.
+        # Segmentation mask class values remain unchanged.
         v2.ToDtype(
             torch.float32,
             scale=True,
         ),
 
-        # Normalize RGB channels for the ImageNet-pretrained encoder.
+        # Normalize the RGB image for the ImageNet-pretrained encoder.
         v2.Normalize(
             mean=IMAGENET_MEAN,
             std=IMAGENET_STD,
@@ -137,17 +161,22 @@ def create_train_transform():
     """
     Create the HemoSet training transformation.
 
-    The output spatial resolution is [480, 640].
+    Output tensor spatial resolution:
+        height = 480
+        width = 640
     """
-    return create_paper_like_train_transform()
+    return create_crop_brightness_train_transform(
+        image_size=HEMOSET_IMAGE_SIZE,
+        crop_ratio=HEMOSET_CROP_RATIO,
+    )
 
 
 def create_eval_transform():
     """
     Create the deterministic HemoSet validation and test transformation.
 
-    HemoSet images already have the expected spatial resolution, so no resize
-    is applied.
+    HemoSet images are already stored at the expected 640x480 resolution,
+    so no resizing is applied.
     """
     return v2.Compose([
 
@@ -173,26 +202,30 @@ def create_bleed_train_transform():
     """
     Create the Rabbani Bleed Seg training transformation.
 
-    The same paper-like augmentation used for HemoSet is applied so that the
-    two experiments use a comparable augmentation strategy.
+    RandomResizedCrop preserves an aspect ratio close to the 854x480
+    resolution reported in the Rabbani paper.
 
-    RandomResizedCrop directly produces images and masks with resolution
-    [480, 640], independently of the original Rabbani image size.
+    Output tensor spatial resolution:
+        height = 480
+        width = 864
     """
-    return create_paper_like_train_transform()
+    return create_crop_brightness_train_transform(
+        image_size=RABBANI_IMAGE_SIZE,
+        crop_ratio=RABBANI_CROP_RATIO,
+    )
 
 
 def create_bleed_eval_transform():
     """
-    Create the deterministic Rabbani Bleed Seg validation and test
-    transformation.
+    Create the deterministic Rabbani validation and test transformation.
 
-    Rabbani images are resized to the common network resolution [480, 640].
+    Rabbani images and masks are resized to 480x864, preserving approximately
+    the aspect ratio reported in the paper.
     """
     return v2.Compose([
 
         v2.Resize(
-            size=IMAGE_SIZE,
+            size=RABBANI_IMAGE_SIZE,
             antialias=True,
         ),
 

@@ -13,21 +13,33 @@ brief:
     - class 0: background
     - class 1: blood
 
-    The training set uses random crop, horizontal flip and color augmentation.
-    The validation set uses only deterministic resizing and normalization.
+    CrossEntropyLoss is used as the only segmentation loss.
 
-    The checkpoint is selected according to the highest validation Dice score
-    of the blood class.
+    The training procedure includes several measures intended to improve
+    optimization stability:
+
+    - deterministic random seeds
+    - batch size 2 with gradient accumulation
+    - removal of incomplete training batches
+    - frozen encoder BatchNorm running statistics
+    - lower learning rate for the pretrained encoder
+    - AdamW optimizer
+    - gradient clipping
+    - adaptive learning-rate reduction
+    - early stopping
+    - checkpoint selection using both global and per-image Dice
 
 usage:
-    python -m scripts.train_rabbani 50
+    python -m scripts.rabbani.train_rabbani 60
 
     If the number of epochs is omitted, config_split.DEFAULT_EPOCHS is used.
 """
 
 import os
+import random
 import sys
 
+import numpy as np
 import segmentation_models_pytorch as smp
 import torch
 
@@ -42,7 +54,7 @@ from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED RABBANI TRAINING CONFIGURATION
+# FIXED MODEL CONFIGURATION
 # ============================================================
 
 MODEL_NAME = "unet"
@@ -54,13 +66,57 @@ NUM_CLASSES = 2
 BACKGROUND_CLASS_INDEX = 0
 BLOOD_CLASS_INDEX = 1
 
-BATCH_SIZE = 4
+DEVICE = torch.device("cuda")
+
+
+# ============================================================
+# TRAINING CONFIGURATION
+# ============================================================
+
+# A physical batch size of 2 is safer for 480x864 images on the Tesla K80.
+BATCH_SIZE = 2
+
+# Two consecutive batches are accumulated before updating the weights.
+# The effective batch size is therefore approximately 4.
+ACCUMULATION_STEPS = 2
+
 NUM_WORKERS = 2
 
-LEARNING_RATE = 0.001
-LR_MILESTONES = [10]
-LR_GAMMA = 0.1
+# Use a lower learning rate for the pretrained encoder and a higher learning
+# rate for the randomly initialized decoder and segmentation head.
+ENCODER_LEARNING_RATE = 1e-4
+DECODER_LEARNING_RATE = 3e-4
 
+WEIGHT_DECAY = 1e-4
+
+# Prevent unusually difficult batches from producing excessively large
+# parameter updates.
+MAX_GRAD_NORM = 1.0
+
+# Reduce learning rates when the validation selection score stops improving.
+LR_REDUCTION_FACTOR = 0.5
+LR_PATIENCE = 4
+LR_THRESHOLD = 0.001
+MIN_LEARNING_RATE = 1e-6
+
+# Stop training after this number of epochs without a meaningful improvement.
+EARLY_STOPPING_PATIENCE = 12
+
+# A new checkpoint is saved only when the score improves by at least this
+# amount.
+MIN_CHECKPOINT_IMPROVEMENT = 0.001
+
+# The checkpoint selection score considers both pixel-level performance and
+# consistency across individual images.
+GLOBAL_DICE_WEIGHT = 0.5
+MEAN_IMAGE_DICE_WEIGHT = 0.5
+
+RANDOM_SEED = 42
+
+
+# ============================================================
+# HARDWARE CONFIGURATION
+# ============================================================
 
 # The installed cuDNN version does not support the Tesla K80 GPU.
 torch.backends.cudnn.enabled = False
@@ -68,6 +124,57 @@ torch.backends.cudnn.enabled = False
 # Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
 torch.backends.nnpack.set_flags(False)
 
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
+
+# ============================================================
+# REPRODUCIBILITY
+# ============================================================
+
+def configure_reproducibility(seed):
+    """
+    Configure the random number generators used by Python, NumPy and PyTorch.
+    """
+    os.environ["PYTHONHASHSEED"] = str(seed)
+
+    random.seed(seed)
+    np.random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.use_deterministic_algorithms(
+        True,
+        warn_only=True,
+    )
+
+
+def seed_worker(worker_id):
+    """
+    Give each DataLoader worker a deterministic random seed.
+    """
+    worker_seed = torch.initial_seed() % (2**32)
+
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
+configure_reproducibility(
+    RANDOM_SEED
+)
+
+
+data_generator = torch.Generator()
+
+data_generator.manual_seed(
+    RANDOM_SEED
+)
+
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
 
 def prepare_mask(mask):
     """
@@ -78,7 +185,7 @@ def prepare_mask(mask):
         mask,
         dim=1,
     ).long().to(
-        "cuda",
+        DEVICE,
         non_blocking=True,
     )
 
@@ -94,7 +201,7 @@ def get_predictions(logits):
 
 def get_segmentation_stats(predictions, mask):
     """
-    Compute TP, FP, FN and TN separately for every class.
+    Compute TP, FP, FN and TN separately for every image and class.
     """
     return smp.metrics.get_stats(
         predictions,
@@ -104,6 +211,34 @@ def get_segmentation_stats(predictions, mask):
     )
 
 
+def freeze_encoder_batch_norm_statistics(model):
+    """
+    Keep the running mean and variance of the pretrained encoder BatchNorm
+    layers fixed.
+
+    BatchNorm affine parameters remain trainable because requires_grad is not
+    modified. Only the running statistics are prevented from being updated
+    using very small batches.
+    """
+    for module in model.encoder.modules():
+
+        if isinstance(
+            module,
+            torch.nn.modules.batchnorm._BatchNorm,
+        ):
+            module.eval()
+
+
+def get_optimizer_learning_rates(optimizer):
+    """
+    Return the current learning rate of every optimizer parameter group.
+    """
+    return [
+        parameter_group["lr"]
+        for parameter_group in optimizer.param_groups
+    ]
+
+
 if not torch.cuda.is_available():
     raise RuntimeError(
         "CUDA is not available. "
@@ -111,7 +246,7 @@ if not torch.cuda.is_available():
     )
 
 
-# Read the number of epochs from the command line.
+# Read the maximum number of epochs from the command line.
 if len(sys.argv) > 1:
     n_epochs = int(sys.argv[1])
 else:
@@ -150,6 +285,17 @@ train_bleed_dl = DataLoader(
     num_workers=NUM_WORKERS,
     shuffle=True,
     pin_memory=True,
+
+    # Avoid a final batch containing only one image. This is especially
+    # important for the trainable BatchNorm layers in the U-Net decoder.
+    drop_last=True,
+
+    worker_init_fn=seed_worker,
+    generator=data_generator,
+
+    persistent_workers=(
+        NUM_WORKERS > 0
+    ),
 )
 
 
@@ -159,6 +305,13 @@ valid_bleed_dl = DataLoader(
     num_workers=NUM_WORKERS,
     shuffle=False,
     pin_memory=True,
+    drop_last=False,
+
+    worker_init_fn=seed_worker,
+
+    persistent_workers=(
+        NUM_WORKERS > 0
+    ),
 )
 
 
@@ -180,7 +333,9 @@ train_img, train_mask = next(
 )
 
 
-print("======== RABBANI TRAINING CONFIGURATION ========")
+print(
+    "======== RABBANI STABLE TRAINING CONFIGURATION ========"
+)
 
 print(
     f"Feature batch shape: {train_img.size()}"
@@ -196,6 +351,14 @@ print(
 
 print(
     f"Validation samples: {len(valid_ds)}"
+)
+
+print(
+    f"Training batches: {len(train_bleed_dl)}"
+)
+
+print(
+    f"Validation batches: {len(valid_bleed_dl)}"
 )
 
 print(
@@ -215,7 +378,30 @@ print(
 )
 
 print(
-    f"Epochs: {n_epochs}"
+    f"Maximum epochs: {n_epochs}"
+)
+
+print(
+    f"Physical batch size: {BATCH_SIZE}"
+)
+
+print(
+    "Effective batch size: "
+    f"{BATCH_SIZE * ACCUMULATION_STEPS}"
+)
+
+print(
+    f"Encoder learning rate: "
+    f"{ENCODER_LEARNING_RATE}"
+)
+
+print(
+    f"Decoder learning rate: "
+    f"{DECODER_LEARNING_RATE}"
+)
+
+print(
+    f"Random seed: {RANDOM_SEED}"
 )
 
 
@@ -228,29 +414,57 @@ model = smp.Unet(
     encoder_weights="imagenet",
     in_channels=3,
     classes=NUM_CLASSES,
-).to("cuda")
-
-
-# ============================================================
-# OPTIMIZER AND SCHEDULER
-# ============================================================
-
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=LEARNING_RATE,
+).to(
+    DEVICE
 )
 
 
-scheduler = torch.optim.lr_scheduler.MultiStepLR(
+# ============================================================
+# OPTIMIZER
+# ============================================================
+
+optimizer = torch.optim.AdamW(
+    [
+        {
+            "params": model.encoder.parameters(),
+            "lr": ENCODER_LEARNING_RATE,
+        },
+        {
+            "params": model.decoder.parameters(),
+            "lr": DECODER_LEARNING_RATE,
+        },
+        {
+            "params": model.segmentation_head.parameters(),
+            "lr": DECODER_LEARNING_RATE,
+        },
+    ],
+    weight_decay=WEIGHT_DECAY,
+)
+
+
+# ============================================================
+# SCHEDULER
+# ============================================================
+
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
-    milestones=LR_MILESTONES,
-    gamma=LR_GAMMA,
+    mode="max",
+    factor=LR_REDUCTION_FACTOR,
+    patience=LR_PATIENCE,
+    threshold=LR_THRESHOLD,
+    threshold_mode="abs",
+    cooldown=1,
+    min_lr=MIN_LEARNING_RATE,
 )
 
 
-# Multiclass loss.
+# ============================================================
+# LOSS
+# ============================================================
+
+# Keep CrossEntropyLoss as the only segmentation loss.
 loss_function = torch.nn.CrossEntropyLoss().to(
-    "cuda"
+    DEVICE
 )
 
 
@@ -274,8 +488,12 @@ checkpoint_path = os.path.join(
 )
 
 
-best_val_dice = float("-inf")
+best_selection_score = float("-inf")
+best_global_dice = float("-inf")
+best_mean_image_dice = float("-inf")
+
 best_epoch = 0
+epochs_without_improvement = 0
 
 
 print(
@@ -296,8 +514,28 @@ for epoch in range(n_epochs):
 
     model.train()
 
+    # model.train() puts every BatchNorm layer into training mode.
+    # Restore only the pretrained encoder BatchNorm layers to evaluation mode.
+    freeze_encoder_batch_norm_statistics(
+        model
+    )
+
+
     train_loss_sum = 0.0
     train_sample_count = 0
+
+    gradient_norm_sum = 0.0
+    optimizer_step_count = 0
+
+
+    optimizer.zero_grad(
+        set_to_none=True
+    )
+
+
+    number_of_train_batches = len(
+        train_bleed_dl
+    )
 
 
     for batch_index, (
@@ -305,12 +543,8 @@ for epoch in range(n_epochs):
         train_mask,
     ) in enumerate(train_bleed_dl):
 
-        optimizer.zero_grad(
-            set_to_none=True
-        )
-
         train_img = train_img.to(
-            "cuda",
+            DEVICE,
             non_blocking=True,
         )
 
@@ -318,34 +552,108 @@ for epoch in range(n_epochs):
             train_mask
         )
 
+
         logits = model(
             train_img
         )
+
 
         loss_train_value = loss_function(
             logits,
             train_mask,
         )
 
-        loss_train_value.backward()
 
-        optimizer.step()
+        if not torch.isfinite(
+            loss_train_value
+        ):
+            raise FloatingPointError(
+                "Non-finite training loss detected at "
+                f"epoch {epoch + 1}, batch {batch_index}."
+            )
 
 
-        current_batch_size = train_img.size(0)
+        # Determine the number of batches in the current accumulation group.
+        # This also correctly handles a possible final incomplete group.
+        accumulation_group_start = (
+            batch_index
+            // ACCUMULATION_STEPS
+            * ACCUMULATION_STEPS
+        )
+
+        accumulation_group_end = min(
+            accumulation_group_start
+            + ACCUMULATION_STEPS,
+            number_of_train_batches,
+        )
+
+        current_accumulation_group_size = (
+            accumulation_group_end
+            - accumulation_group_start
+        )
+
+
+        scaled_loss = (
+            loss_train_value
+            / current_accumulation_group_size
+        )
+
+
+        scaled_loss.backward()
+
+
+        should_update_weights = (
+            batch_index + 1
+            == accumulation_group_end
+        )
+
+
+        if should_update_weights:
+
+            gradient_norm = (
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    max_norm=MAX_GRAD_NORM,
+                )
+            )
+
+
+            optimizer.step()
+
+
+            optimizer.zero_grad(
+                set_to_none=True
+            )
+
+
+            gradient_norm_sum += float(
+                gradient_norm.detach().cpu()
+            )
+
+            optimizer_step_count += 1
+
+
+        current_batch_size = train_img.size(
+            0
+        )
+
 
         train_loss_sum += (
             loss_train_value.item()
             * current_batch_size
         )
 
-        train_sample_count += current_batch_size
+
+        train_sample_count += (
+            current_batch_size
+        )
 
 
         if batch_index % 50 == 0:
+
             print(
                 f"train batch "
-                f"{batch_index}/{len(train_bleed_dl)} "
+                f"{batch_index}/{number_of_train_batches} "
                 f"loss {loss_train_value.item():.6f}"
             )
 
@@ -356,22 +664,36 @@ for epoch in range(n_epochs):
     )
 
 
+    if optimizer_step_count > 0:
+
+        avg_gradient_norm = (
+            gradient_norm_sum
+            / optimizer_step_count
+        )
+
+    else:
+
+        avg_gradient_norm = 0.0
+
+
     # ========================================================
     # VALIDATION
     # ========================================================
 
     model.eval()
 
+
     val_loss_sum = 0.0
     val_sample_count = 0
 
-    total_tp = None
-    total_fp = None
-    total_fn = None
-    total_tn = None
+
+    tp_batches = []
+    fp_batches = []
+    fn_batches = []
+    tn_batches = []
 
 
-    with torch.no_grad():
+    with torch.inference_mode():
 
         for batch_index, (
             val_img,
@@ -379,7 +701,7 @@ for epoch in range(n_epochs):
         ) in enumerate(valid_bleed_dl):
 
             val_img = val_img.to(
-                "cuda",
+                DEVICE,
                 non_blocking=True,
             )
 
@@ -387,9 +709,11 @@ for epoch in range(n_epochs):
                 val_mask
             )
 
+
             logits = model(
                 val_img
             )
+
 
             loss_valid_value = loss_function(
                 logits,
@@ -397,14 +721,29 @@ for epoch in range(n_epochs):
             )
 
 
-            current_batch_size = val_img.size(0)
+            if not torch.isfinite(
+                loss_valid_value
+            ):
+                raise FloatingPointError(
+                    "Non-finite validation loss detected at "
+                    f"epoch {epoch + 1}, batch {batch_index}."
+                )
+
+
+            current_batch_size = val_img.size(
+                0
+            )
+
 
             val_loss_sum += (
                 loss_valid_value.item()
                 * current_batch_size
             )
 
-            val_sample_count += current_batch_size
+
+            val_sample_count += (
+                current_batch_size
+            )
 
 
             predictions = get_predictions(
@@ -420,39 +759,27 @@ for epoch in range(n_epochs):
             )
 
 
-            batch_tp = batch_tp.sum(
-                dim=0
+            # Keep one row for every image. This allows both global and
+            # per-image metrics to be calculated.
+            tp_batches.append(
+                batch_tp.cpu()
             )
 
-            batch_fp = batch_fp.sum(
-                dim=0
+            fp_batches.append(
+                batch_fp.cpu()
             )
 
-            batch_fn = batch_fn.sum(
-                dim=0
+            fn_batches.append(
+                batch_fn.cpu()
             )
 
-            batch_tn = batch_tn.sum(
-                dim=0
+            tn_batches.append(
+                batch_tn.cpu()
             )
-
-
-            if total_tp is None:
-
-                total_tp = batch_tp
-                total_fp = batch_fp
-                total_fn = batch_fn
-                total_tn = batch_tn
-
-            else:
-
-                total_tp += batch_tp
-                total_fp += batch_fp
-                total_fn += batch_fn
-                total_tn += batch_tn
 
 
             if batch_index % 50 == 0:
+
                 print(
                     f"validation batch "
                     f"{batch_index}/{len(valid_bleed_dl)} "
@@ -466,63 +793,250 @@ for epoch in range(n_epochs):
     )
 
 
-    iou_classes = smp.metrics.iou_score(
-        total_tp,
-        total_fp,
-        total_fn,
-        total_tn,
+    # Join validation statistics while preserving the image dimension.
+    val_tp = torch.cat(
+        tp_batches,
+        dim=0,
+    )
+
+    val_fp = torch.cat(
+        fp_batches,
+        dim=0,
+    )
+
+    val_fn = torch.cat(
+        fn_batches,
+        dim=0,
+    )
+
+    val_tn = torch.cat(
+        tn_batches,
+        dim=0,
+    )
+
+
+    # ========================================================
+    # PER-IMAGE VALIDATION METRICS
+    # ========================================================
+
+    per_image_iou_classes = smp.metrics.iou_score(
+        val_tp,
+        val_fp,
+        val_fn,
+        val_tn,
         reduction="none",
     )
 
 
-    dice_classes = smp.metrics.f1_score(
-        total_tp,
-        total_fp,
-        total_fn,
-        total_tn,
+    per_image_dice_classes = smp.metrics.f1_score(
+        val_tp,
+        val_fp,
+        val_fn,
+        val_tn,
         reduction="none",
     )
 
 
-    blood_iou = iou_classes[
+    blood_iou_per_image = per_image_iou_classes[
+        :,
+        BLOOD_CLASS_INDEX,
+    ]
+
+
+    blood_dice_per_image = per_image_dice_classes[
+        :,
+        BLOOD_CLASS_INDEX,
+    ]
+
+
+    mean_image_iou = (
+        blood_iou_per_image
+        .mean()
+        .item()
+    )
+
+
+    std_image_iou = (
+        blood_iou_per_image
+        .std(correction=0)
+        .item()
+    )
+
+
+    mean_image_dice = (
+        blood_dice_per_image
+        .mean()
+        .item()
+    )
+
+
+    std_image_dice = (
+        blood_dice_per_image
+        .std(correction=0)
+        .item()
+    )
+
+
+    # ========================================================
+    # GLOBAL VALIDATION METRICS
+    # ========================================================
+
+    global_tp = val_tp.sum(
+        dim=0
+    )
+
+    global_fp = val_fp.sum(
+        dim=0
+    )
+
+    global_fn = val_fn.sum(
+        dim=0
+    )
+
+    global_tn = val_tn.sum(
+        dim=0
+    )
+
+
+    global_iou_classes = smp.metrics.iou_score(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+
+    global_dice_classes = smp.metrics.f1_score(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+
+    global_precision_classes = smp.metrics.precision(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+
+    global_recall_classes = smp.metrics.recall(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+        reduction="none",
+    )
+
+
+    global_blood_iou = global_iou_classes[
         BLOOD_CLASS_INDEX
     ].item()
 
 
-    blood_dice = dice_classes[
+    global_blood_dice = global_dice_classes[
         BLOOD_CLASS_INDEX
     ].item()
 
 
-    # Save the model with the highest validation Dice for blood.
-    if blood_dice > best_val_dice:
+    global_blood_precision = global_precision_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
 
-        best_val_dice = blood_dice
+
+    global_blood_recall = global_recall_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
+
+
+    # Combine global pixel-level quality and image-level consistency.
+    selection_score = (
+        GLOBAL_DICE_WEIGHT
+        * global_blood_dice
+        +
+        MEAN_IMAGE_DICE_WEIGHT
+        * mean_image_dice
+    )
+
+
+    if not np.isfinite(
+        selection_score
+    ):
+        raise FloatingPointError(
+            "Non-finite validation selection score detected."
+        )
+
+
+    # ========================================================
+    # CHECKPOINT SELECTION
+    # ========================================================
+
+    meaningful_improvement = (
+        selection_score
+        > best_selection_score
+        + MIN_CHECKPOINT_IMPROVEMENT
+    )
+
+
+    if meaningful_improvement:
+
+        best_selection_score = selection_score
+        best_global_dice = global_blood_dice
+        best_mean_image_dice = mean_image_dice
+
         best_epoch = epoch + 1
+        epochs_without_improvement = 0
+
 
         torch.save(
             model.state_dict(),
             checkpoint_path,
         )
 
+
         print(
-            "New best checkpoint saved."
+            "New best stable checkpoint saved."
         )
 
         print(
-            f"Best validation Dice: "
-            f"{best_val_dice:.6f}"
+            f"Best selection score: "
+            f"{best_selection_score:.6f}"
+        )
+
+        print(
+            f"Best global Dice: "
+            f"{best_global_dice:.6f}"
+        )
+
+        print(
+            f"Best mean-image Dice: "
+            f"{best_mean_image_dice:.6f}"
         )
 
         print(
             f"Best epoch: {best_epoch}"
         )
 
+    else:
 
-    scheduler.step()
+        epochs_without_improvement += 1
 
-    current_learning_rate = (
-        scheduler.get_last_lr()[0]
+
+    # Reduce the learning rate only when validation performance plateaus.
+    scheduler.step(
+        selection_score
+    )
+
+
+    current_learning_rates = (
+        get_optimizer_learning_rates(
+            optimizer
+        )
     )
 
 
@@ -540,15 +1054,46 @@ for epoch in range(n_epochs):
     )
 
     print(
-        f"blood_iou: {blood_iou:.6f}"
+        f"avg_gradient_norm: {avg_gradient_norm:.6f}"
     )
 
     print(
-        f"blood_dice: {blood_dice:.6f}"
+        f"global_blood_iou: {global_blood_iou:.6f}"
     )
 
     print(
-        f"learning_rate: {current_learning_rate}"
+        f"global_blood_dice: {global_blood_dice:.6f}"
+    )
+
+    print(
+        f"global_blood_precision: "
+        f"{global_blood_precision:.6f}"
+    )
+
+    print(
+        f"global_blood_recall: "
+        f"{global_blood_recall:.6f}"
+    )
+
+    print(
+        f"mean_image_iou: "
+        f"{mean_image_iou:.6f} "
+        f"+/- {std_image_iou:.6f}"
+    )
+
+    print(
+        f"mean_image_dice: "
+        f"{mean_image_dice:.6f} "
+        f"+/- {std_image_dice:.6f}"
+    )
+
+    print(
+        f"selection_score: {selection_score:.6f}"
+    )
+
+    print(
+        "learning_rates: "
+        f"{current_learning_rates}"
     )
 
     print(
@@ -556,9 +1101,31 @@ for epoch in range(n_epochs):
     )
 
     print(
-        f"best_validation_dice: "
-        f"{best_val_dice:.6f}"
+        f"best_selection_score: "
+        f"{best_selection_score:.6f}"
     )
+
+    print(
+        "epochs_without_improvement: "
+        f"{epochs_without_improvement}"
+    )
+
+
+    if (
+        epochs_without_improvement
+        >= EARLY_STOPPING_PATIENCE
+    ):
+
+        print(
+            "\nEarly stopping activated."
+        )
+
+        print(
+            f"No meaningful validation improvement for "
+            f"{EARLY_STOPPING_PATIENCE} consecutive epochs."
+        )
+
+        break
 
 
 print(
@@ -570,7 +1137,18 @@ print(
 )
 
 print(
-    f"Best validation Dice: {best_val_dice:.6f}"
+    f"Best selection score: "
+    f"{best_selection_score:.6f}"
+)
+
+print(
+    f"Best global validation Dice: "
+    f"{best_global_dice:.6f}"
+)
+
+print(
+    f"Best mean-image validation Dice: "
+    f"{best_mean_image_dice:.6f}"
 )
 
 print(

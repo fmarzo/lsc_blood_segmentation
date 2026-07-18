@@ -87,5 +87,29 @@
             },
             "justMyCode": true
         },
+        {
+            "name": "Python Debugger: Evaluate final Model on Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.rabbani.evaluate_final_on_rabbani",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger: Evaluate hemoset on Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.rabbani.evaluate_hemoset_on_rabbani",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "justMyCode": true
+        }
     ]
 }

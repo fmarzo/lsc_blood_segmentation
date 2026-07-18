@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=u_m_rab_lsc
+#SBATCH --job-name=u_rab_18_lsc
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
