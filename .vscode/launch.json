@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Train U-Net",
+            "name": "Python Debugger: Train U-Net on Hemoset",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.train_unet_resnet18",
@@ -27,34 +27,10 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate Unet Hemoset on rabbani ",
+            "name": "Python Debugger: Zero Shot Test set of Rabbani on Hemoset  ",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.evaluate_rabbani_on_hemoset",
-            "cwd": "${workspaceFolder}/lab",
-            "console": "integratedTerminal",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
-            },
-            "justMyCode": true
-        },
-        {
-            "name": "Python Debugger: Final train ",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.final_train",
-            "cwd": "${workspaceFolder}/lab",
-            "console": "integratedTerminal",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
-            },
-            "justMyCode": true
-        },
-        {
-            "name": "Python Debugger: Evaluate Final train ",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.evaluate_final_model",
             "cwd": "${workspaceFolder}/lab",
             "console": "integratedTerminal",
             "env": {
@@ -76,6 +52,19 @@
             "justMyCode": true
         },
         {
+            "name": "Python Debugger: Train DeepLabv3plus on Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "scripts.rabbani.train_deeplabv3plus_rabbani",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}",
+            "justMyCode": true
+        },
+        {
             "name": "Python Debugger: Evaluate Model on Rabbani",
             "type": "debugpy",
             "request": "launch",
@@ -88,19 +77,7 @@
             "justMyCode": true
         },
         {
-            "name": "Python Debugger: Evaluate final Model on Rabbani",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "scripts.rabbani.evaluate_final_on_rabbani",
-            "cwd": "${workspaceFolder}/lab",
-            "console": "integratedTerminal",
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
-            },
-            "justMyCode": true
-        },
-        {
-            "name": "Python Debugger: Evaluate hemoset on Rabbani",
+            "name": "Python Debugger: Zero Shot Test set of Hemoset on Rabbani",
             "type": "debugpy",
             "request": "launch",
             "module": "scripts.rabbani.evaluate_hemoset_on_rabbani",
@@ -111,5 +88,6 @@
             },
             "justMyCode": true
         }
+        
     ]
 }
