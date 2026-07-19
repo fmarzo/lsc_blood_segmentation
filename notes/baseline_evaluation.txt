@@ -549,15 +549,33 @@ IoU:       0.5671 +/- 0.2324
 Dice:      0.6900 +/- 0.2314
 Precision: 0.6977 +/- 0.2393
 Recall:    0.7723 +/- 0.2251
+
+--------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------
+
+|SEgDino ON HEMOSET|
+
+----- Per-image blood metrics -----
+IoU=0.5384  
+Dice=0.6760  
+
 --------------------------------------------------------------------------------------------------------------------
 
 |SEgDino ON RABBANI|
 
 ----- Per-image blood metrics -----
-IoU 0.4293
-Dice 0.5476
+IoU=0.5734
+Dice=0.7105  
 
 --------------------------------------------------------------------------------------------------------------------
+
+|SEgDino ON HEMOSET TRANIED ON TRAIN SET = [PIG1 to PIG7], VALID SET = [PIG9], TEST SET = [PIG10,PIG11]
+
+----- Per-image blood metrics -----
+IoU=0.7654
+Dice=0.8667 
 
 --------------------------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------
@@ -609,6 +627,53 @@ Dice:      0.1792 +/- 0.2444
 Precision: 0.6841 +/- 0.3972
 Recall:    0.1815 +/- 0.2584
 
+--------------------------------------------------------------------------------------------------------------------
+
+|ZERO SHOT DEEPLABV3+ BINARY RESNET18 TRAINED ON HEMOSET AND TESTED ON RABBANI TEST SET|
+
+======== HEMOSET TO RABBANI ZERO-SHOT EVALUATION ========
+Model: DeepLabV3+
+Configuration value: deeplabv3plus
+Encoder: resnet18
+Segmentation mode: binary
+Output channels: 1
+Training loss: BCEWithLogitsLoss + DiceLoss
+Binary threshold: 0.50
+Training dataset: HemoSet
+Evaluation dataset: Rabbani test split
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_binary_best_resnet18_hemo.pth
+Checkpoint size: 47.15 MiB
+Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits_v1p0/test.csv
+Test images: 101
+Test batches: 26
+Input batch shape: (4, 3, 480, 864)
+Output batch shape: (4, 1, 480, 864)
+Mask batch shape: (4, 1, 480, 864)
+Evaluated batch 0/26
+Evaluated batch 25/26
+
+======== ZERO-SHOT RESULTS ========
+Model: DeepLabV3+
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_binary_best_resnet18_hemo.pth
+Test images: 101
+
+----- Test image composition -----
+Images with blood: 101
+Images without blood: 0
+Correctly predicted as empty: 0
+Empty images with false-positive blood: 0
+
+----- Dataset-level blood metrics -----
+IoU:       0.2293
+Dice:      0.3731
+Precision: 0.3563
+Recall:    0.3916
+
+----- Per-image blood metrics -----
+IoU:       0.1960 +/- 0.2074
+Dice:      0.2820 +/- 0.2667
+Precision: 0.4722 +/- 0.3831
+Recall:    0.2761 +/- 0.2689
 --------------------------------------------------------------------------------------------------------------------
 
 |ZERO SHOT DEEPLABV3+ BINARY RESNET18 TRAINED ON RABBANI AND TESTED ON HEMOSET TEST SET|
@@ -712,110 +777,25 @@ Recall:    0.9287 +/- 0.1124
 
 --------------------------------------------------------------------------------------------------------------------
 
-|ZERO SHOT UNET++ BINARY RESNET18 TRAINED ON RABBANI AND TESTED ON HEMOSET TEST SET| da fare su unet++ e binary
+|ZERO SHOT UNET++ BINARY RESNET18 TRAINED ON RABBANI AND TESTED ON HEMOSET TEST SET|
 
-======== RABBANI TO HEMOSET ZERO-SHOT EVALUATION ========
-Model: unet
+======== RABBANI MODEL TO HEMOSET ZERO-SHOT EVALUATION ========
+Model: U-Net++
+Model configuration value: unet_plus_plus
 Encoder: resnet18
-Segmentation mode: multiclass
-Output classes: 2
-Training dataset: Rabbani Bleed Seg
-Evaluation dataset: HemoSet test split
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
-Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits/test.csv
-Test images: 102
-Evaluated batch 0/26
-
------ Test image composition -----
-Total images: 102
-Images with blood: 102
-Images without blood: 0
-
------ Empty image predictions -----
-Correctly predicted as empty: 0
-Empty images with false-positive blood: 0
-
------ HemoSet test images per video -----
-video_id
-pig3     50
-pig6     32
-pig11    20
-Name: count, dtype: int64
-
------ Per-video blood metrics -----
-
-Video: pig3
-Images: 50
-Per-image IoU:       0.3273 +/- 0.0541
-Per-image Dice:      0.4905 +/- 0.0638
-Per-image Precision: 0.3282 +/- 0.0540
-Per-image Recall:    0.9899 +/- 0.0066
-Global IoU:       0.3270
-Global Dice:      0.4928
-Global Precision: 0.3280
-Global Recall:    0.9907
-
-Video: pig6
-Images: 32
-Per-image IoU:       0.2423 +/- 0.1470
-Per-image Dice:      0.3675 +/- 0.1928
-Per-image Precision: 0.2544 +/- 0.1452
-Per-image Recall:    0.7087 +/- 0.2931
-Global IoU:       0.2997
-Global Dice:      0.4612
-Global Precision: 0.3161
-Global Recall:    0.8527
-
-Video: pig11
-Images: 20
-Per-image IoU:       0.2067 +/- 0.0423
-Per-image Dice:      0.3405 +/- 0.0595
-Per-image Precision: 0.2080 +/- 0.0418
-Per-image Recall:    0.9597 +/- 0.0687
-Global IoU:       0.2108
-Global Dice:      0.3483
-Global Precision: 0.2120
-Global Recall:    0.9737
-
-======== RABBANI TO HEMOSET ZERO-SHOT RESULTS ========
-Model: unet
-Encoder: resnet18
-Segmentation mode: multiclass
-Training dataset: Rabbani Bleed Seg
-Test dataset: HemoSet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
-Test images: 102
-
------ Dataset-level blood metrics -----
-IoU:       0.2955
-Dice:      0.4562
-Precision: 0.2992
-Recall:    0.9602
-
------ Per-image blood metrics -----
-IoU:       0.2770 +/- 0.1056
-Dice:      0.4225 +/- 0.1374
-Precision: 0.2815 +/- 0.1036
-Recall:    0.8958 +/- 0.2098
-
---------------------------------------------------------------------------------------------------------------------
-
-|ZERO SHOT DEEPLABV3+ BINARY RESNET18 TRAINED ON RABBANI AND TESTED ON HEMOSET TEST SET| da fare binary 
-
-======== RABBANI DEEPLABV3+ TO HEMOSET ZERO-SHOT EVALUATION ========
-Model: deeplabv3plus
-Encoder: resnet18
-Encoder output stride: 16
-Decoder channels: 256
-Decoder atrous rates: (12, 24, 36)
-Segmentation mode: multiclass
-Number of classes: 2
+Segmentation mode: binary
+Output channels: 1
+Training loss: BCEWithLogitsLoss + DiceLoss
+Binary threshold: 0.50
 Training dataset: Rabbani Bleeding Segmentation
 Evaluation dataset: HemoSet test split
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_multiclass_best_dice_bleed_seg_resnet18.pth
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_dice_bleed_seg_resnet18_rab.pth
 Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits/test.csv
 Test images: 102
 Test batches: 26
+Input batch shape: (4, 3, 480, 640)
+Output batch shape: (4, 1, 480, 640)
+Mask batch shape: (4, 1, 480, 640)
 Evaluated batch 0/26
 
 ----- Test image composition -----
@@ -838,56 +818,59 @@ Name: count, dtype: int64
 
 Video: pig3
 Images: 50
-Per-image IoU:       0.3792 +/- 0.0577
-Per-image Dice:      0.5472 +/- 0.0639
-Per-image Precision: 0.3807 +/- 0.0576
-Per-image Recall:    0.9887 +/- 0.0066
-Global IoU:       0.3803
-Global Dice:      0.5510
-Global Precision: 0.3818
-Global Recall:    0.9895
+Per-image IoU:       0.3644 +/- 0.0452
+Per-image Dice:      0.5324 +/- 0.0500
+Per-image Precision: 0.3688 +/- 0.0454
+Per-image Recall:    0.9671 +/- 0.0176
+Global IoU:       0.3665
+Global Dice:      0.5365
+Global Precision: 0.3710
+Global Recall:    0.9684
 
 Video: pig6
 Images: 32
-Per-image IoU:       0.2130 +/- 0.1192
-Per-image Dice:      0.3353 +/- 0.1629
-Per-image Precision: 0.2144 +/- 0.1200
-Per-image Recall:    0.9386 +/- 0.1198
-Global IoU:       0.2400
-Global Dice:      0.3871
-Global Precision: 0.2414
-Global Recall:    0.9766
+Per-image IoU:       0.3509 +/- 0.1817
+Per-image Dice:      0.4904 +/- 0.2195
+Per-image Precision: 0.5278 +/- 0.1991
+Per-image Recall:    0.6103 +/- 0.2884
+Global IoU:       0.4438
+Global Dice:      0.6148
+Global Precision: 0.5073
+Global Recall:    0.7800
 
 Video: pig11
 Images: 20
-Per-image IoU:       0.2586 +/- 0.0844
-Per-image Dice:      0.4034 +/- 0.1122
-Per-image Precision: 0.2850 +/- 0.0933
-Per-image Recall:    0.7183 +/- 0.1014
-Global IoU:       0.2618
-Global Dice:      0.4149
-Global Precision: 0.2879
-Global Recall:    0.7425
+Per-image IoU:       0.2228 +/- 0.0795
+Per-image Dice:      0.3572 +/- 0.1114
+Per-image Precision: 0.2301 +/- 0.0780
+Per-image Recall:    0.8173 +/- 0.1975
+Global IoU:       0.2311
+Global Dice:      0.3754
+Global Precision: 0.2395
+Global Recall:    0.8675
 
-======== RABBANI DEEPLABV3+ TO HEMOSET ZERO-SHOT RESULTS ========
-Model: deeplabv3plus
+======== RABBANI MODEL TO HEMOSET ZERO-SHOT RESULTS ========
+Model: U-Net++
 Encoder: resnet18
-Segmentation mode: multiclass
+Segmentation mode: binary
+Output channels: 1
+Training loss: BCEWithLogitsLoss + DiceLoss
+Binary threshold: 0.50
 Training dataset: Rabbani Bleeding Segmentation
 Test dataset: HemoSet
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/deeplabv3plus_multiclass_best_dice_bleed_seg_resnet18.pth
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_dice_bleed_seg_resnet18_rab.pth
 Test images: 102
 
 ----- Dataset-level blood metrics -----
-IoU:       0.3226
-Dice:      0.4878
-Precision: 0.3285
-Recall:    0.9470
+IoU:       0.3458
+Dice:      0.5139
+Precision: 0.3574
+Recall:    0.9141
 
 ----- Per-image blood metrics -----
-IoU:       0.3034 +/- 0.1151
-Dice:      0.4525 +/- 0.1483
-Precision: 0.3097 +/- 0.1153
-Recall:    0.9200 +/- 0.1301
+IoU:       0.3324 +/- 0.1248
+Dice:      0.4849 +/- 0.1519
+Precision: 0.3915 +/- 0.1607
+Recall:    0.8258 +/- 0.2414
 
 --------------------------------------------------------------------------------------------------------------------
