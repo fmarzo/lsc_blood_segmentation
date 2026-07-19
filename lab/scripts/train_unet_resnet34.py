@@ -1,9 +1,9 @@
 """
-file: train_unet.py
+file: train_unet_resnet34.py
 
 brief:  this script is the main entry point for training the blood segmentation model.
 
-    The model uses a ResNet-18 encoder pretrained on ImageNet. During training, 
+    The model uses a ResNet-34 encoder pretrained on ImageNet. During training, 
     both the pretrained encoder and the U-Net decoder parameters are updated.
 
     The image transform converts each input image from PIL format to a PyTorch

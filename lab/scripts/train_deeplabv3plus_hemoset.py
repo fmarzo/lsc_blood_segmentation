@@ -1,59 +1,43 @@
 """
 file: train_deeplabv3plus_hemoset.py
 
-brief:
-    Train a DeepLabV3+ ResNet-18 segmentation model on HemoSet.
+brief:  this script is the main entry point for training a DeepLabV3+ blood
+    segmentation model on HemoSet.
 
-    The segmentation mode is selected through:
+    The model uses a ResNet-18 encoder pretrained on ImageNet. During training,
+    both the pretrained encoder and the DeepLabV3+ decoder parameters are
+    updated. The architecture is fixed: a DeepLabV3+ decoder with 256 channels
+    on top of a ResNet-18 encoder.
 
-        config_split.SEGMENTATION_MODE
+    The HemoSet training split receives online augmentation to improve
+    generalization, while the validation split receives only the evaluation
+    preprocessing, so that validation measures performance on unaltered images.
 
-    Supported values:
+    The segmentation approach is selected through config_split.SEGMENTATION_MODE,
+    which accepts either "binary" or "multiclass". The script supports both:
 
-        "binary"
-        "multiclass"
+    - Multiclass segmentation:
+      the model produces two output channels, one for background and one for
+      blood. CrossEntropyLoss compares the predicted class of every pixel with
+      the corresponding ground-truth class, predictions are obtained with argmax,
+      and the blood class corresponds to index 1.
 
-    Binary segmentation:
+    - Binary segmentation:
+      the model produces one output channel representing the presence of blood.
+      BCEWithLogitsLoss evaluates every pixel independently, while DiceLoss
+      checks how well the entire predicted blood region overlaps the real one;
+      the total loss is the sum of the two. Predictions use a sigmoid followed
+      by config_split.BINARY_THRESHOLD, and the blood channel corresponds to
+      index 0.
 
-    - the model produces one output channel representing blood;
-    - BCEWithLogitsLoss evaluates every pixel independently;
-    - DiceLoss encourages overlap between predicted and ground-truth blood;
-    - the total loss is BCEWithLogitsLoss + DiceLoss;
-    - predictions use sigmoid followed by
-      config_split.BINARY_THRESHOLD;
-    - the blood channel index is 0.
+      DiceLoss is especially useful in this dataset because blood pixels can be
+      much fewer than background pixels. It prevents the model from obtaining a
+      good result simply by predicting mostly background and encourages it to
+      correctly recover the shape and area of the blood region.
 
-    Multiclass segmentation:
-
-    - the model produces two output channels;
-    - class 0 represents background;
-    - class 1 represents blood;
-    - CrossEntropyLoss is used;
-    - predictions are obtained using argmax;
-    - the blood class index is 1.
-
-    Fixed architecture:
-
-    - DeepLabV3+
-    - ResNet-18 encoder pretrained on ImageNet
-    - encoder output stride 16
-    - decoder channels 256
-    - atrous rates 12, 24 and 36
-    - physical batch size 4
-
-    The HemoSet training split receives online augmentation, while the
-    validation split receives only evaluation preprocessing.
-
-    The checkpoint is selected using:
-
-        0.5 * dataset-level Dice
-        0.5 * mean per-image Dice
-
-    The checkpoint filename automatically contains the selected
-    segmentation mode.
-
-usage:
-    python -m scripts.train_deeplabv3plus_hemoset 50
+    The best checkpoint is selected using a combined score, giving equal weight
+    to the dataset-level Dice and the mean per-image Dice, and its filename
+    automatically records the segmentation mode that produced it.
 """
 
 import os
@@ -74,9 +58,7 @@ from src.data_transforms import (
 from src.hemoset_dataset_v2 import CustomImageDataset
 
 
-# ============================================================
 # MODEL CONFIGURATION
-# ============================================================
 
 MODEL_NAME = "deeplabv3plus"
 ENCODER_NAME = "resnet18"
@@ -130,41 +112,28 @@ DECODER_ATROUS_RATES = (12, 24, 36)
 UPSAMPLING_FACTOR = 4
 
 
-# ============================================================
 # TRAINING CONFIGURATION
-# ============================================================
 
 BATCH_SIZE = 4
 NUM_WORKERS = 2
-
 ENCODER_LEARNING_RATE = 1e-4
 DECODER_LEARNING_RATE = 3e-4
-
 WEIGHT_DECAY = 1e-4
 GRADIENT_CLIP_MAX_NORM = 1.0
-
 RANDOM_SEED = 42
-
 EARLY_STOPPING_PATIENCE = 12
 MIN_CHECKPOINT_IMPROVEMENT = 0.001
-
 GLOBAL_DICE_WEIGHT = 0.5
 MEAN_IMAGE_DICE_WEIGHT = 0.5
 
 
-# ============================================================
 # SCHEDULER CONFIGURATION
-# ============================================================
 
 LR_REDUCTION_FACTOR = 0.5
 LR_PATIENCE = 4
 LR_THRESHOLD = 0.001
 MINIMUM_LEARNING_RATE = 1e-6
 
-
-# ============================================================
-# DEVICE AND HARDWARE CONFIGURATION
-# ============================================================
 
 if not torch.cuda.is_available():
     raise RuntimeError(
@@ -185,9 +154,7 @@ torch.backends.nnpack.set_flags(False)
 torch.backends.cudnn.benchmark = False
 
 
-# ============================================================
 # REPRODUCIBILITY
-# ============================================================
 
 def configure_reproducibility(seed):
     """
@@ -237,9 +204,7 @@ configure_reproducibility(
 )
 
 
-# ============================================================
 # MODEL HELPERS
-# ============================================================
 
 def create_model():
     """
@@ -275,9 +240,7 @@ def freeze_encoder_batch_norm_statistics(model):
             module.eval()
 
 
-# ============================================================
 # SEGMENTATION HELPERS
-# ============================================================
 
 def prepare_mask(mask):
     """
@@ -462,9 +425,7 @@ def compute_metrics(
     )
 
 
-# ============================================================
 # NUMBER OF EPOCHS
-# ============================================================
 
 if len(sys.argv) > 1:
 
@@ -487,9 +448,7 @@ if n_epochs <= 0:
     )
 
 
-# ============================================================
 # HEMOSET TRANSFORMS
-# ============================================================
 
 train_transform = (
     create_train_transform()
@@ -500,9 +459,7 @@ eval_transform = (
 )
 
 
-# ============================================================
 # HEMOSET DATASETS
-# ============================================================
 
 train_ds = CustomImageDataset(
     config_split.CSV_TRAIN_PATH,
@@ -528,9 +485,7 @@ if len(valid_ds) == 0:
     )
 
 
-# ============================================================
 # DATA LOADERS
-# ============================================================
 
 train_generator = torch.Generator()
 
@@ -591,9 +546,7 @@ if len(valid_hemo_DL) == 0:
     )
 
 
-# ============================================================
 # DATA SHAPE CHECK
-# ============================================================
 
 feature_batch, label_batch = next(
     iter(train_hemo_DL)
@@ -611,9 +564,7 @@ print(
 )
 
 
-# ============================================================
 # MODEL
-# ============================================================
 
 deeplabv3plus = create_model().to(
     DEVICE
@@ -654,9 +605,7 @@ del shape_check_masks
 del shape_check_logits
 
 
-# ============================================================
 # LOSS FUNCTIONS
-# ============================================================
 
 if SEGMENTATION_MODE == "binary":
 
@@ -686,9 +635,7 @@ else:
     )
 
 
-# ============================================================
 # OPTIMIZER
-# ============================================================
 
 optimizer = torch.optim.AdamW(
     [
@@ -717,9 +664,7 @@ optimizer = torch.optim.AdamW(
 )
 
 
-# ============================================================
 # LEARNING-RATE SCHEDULER
-# ============================================================
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer,
@@ -733,9 +678,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 )
 
 
-# ============================================================
 # CHECKPOINT
-# ============================================================
 
 os.makedirs(
     config_split.MODEL_PRETRAINED_DIR,
@@ -752,9 +695,7 @@ checkpoint_path = os.path.join(
 )
 
 
-# ============================================================
 # TRAINING SUMMARY
-# ============================================================
 
 print(
     "\n======== HEMOSET DEEPLABV3+ "
@@ -872,9 +813,7 @@ print(
 )
 
 
-# ============================================================
 # TRAINING STATE
-# ============================================================
 
 best_selection_score = float(
     "-inf"
@@ -893,9 +832,7 @@ best_epoch = 0
 epochs_without_improvement = 0
 
 
-# ============================================================
 # TRAINING LOOP
-# ============================================================
 
 for epoch in range(n_epochs):
 
@@ -1543,9 +1480,7 @@ for epoch in range(n_epochs):
         break
 
 
-# ============================================================
 # FINAL SUMMARY
-# ============================================================
 
 print(
     "\n======== HEMOSET DEEPLABV3+ "

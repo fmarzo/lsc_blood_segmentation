@@ -1,5 +1,5 @@
 """
-file: train_unet.py
+file: train_unet_resnet18.py
 
 brief:  this script is the main entry point for training the blood segmentation model.
 

@@ -1,66 +1,43 @@
 """
-file: evaluate_deeplabv3plus_hemoset.py
+file: train_deeplabv3plus_hemoset.py
 
-brief:
-    Evaluate the best DeepLabV3+ ResNet-18 checkpoint trained on HemoSet.
+brief:  this script is the main entry point for training a DeepLabV3+ blood
+    segmentation model on HemoSet.
 
-    The segmentation mode is selected in src/config_split.py through:
+    The model uses a ResNet-18 encoder pretrained on ImageNet. During training,
+    both the pretrained encoder and the DeepLabV3+ decoder parameters are
+    updated. The architecture is fixed: a DeepLabV3+ decoder with 256 channels
+    on top of a ResNet-18 encoder.
 
-        SEGMENTATION_MODE = "binary"
+    The HemoSet training split receives online augmentation to improve
+    generalization, while the validation split receives only the evaluation
+    preprocessing, so that validation measures performance on unaltered images.
 
-    or:
+    The segmentation approach is selected through config_split.SEGMENTATION_MODE,
+    which accepts either "binary" or "multiclass". The script supports both:
 
-        SEGMENTATION_MODE = "multiclass"
+    - Multiclass segmentation:
+      the model produces two output channels, one for background and one for
+      blood. CrossEntropyLoss compares the predicted class of every pixel with
+      the corresponding ground-truth class, predictions are obtained with argmax,
+      and the blood class corresponds to index 1.
 
-    Binary evaluation:
+    - Binary segmentation:
+      the model produces one output channel representing the presence of blood.
+      BCEWithLogitsLoss evaluates every pixel independently, while DiceLoss
+      checks how well the entire predicted blood region overlaps the real one;
+      the total loss is the sum of the two. Predictions use a sigmoid followed
+      by config_split.BINARY_THRESHOLD, and the blood channel corresponds to
+      index 0.
 
-    - the network produces one output channel representing blood;
-    - the corresponding model was trained using
-      BCEWithLogitsLoss + DiceLoss;
-    - predictions are obtained using sigmoid followed by
-      config_split.BINARY_THRESHOLD;
-    - the blood channel index is 0.
+      DiceLoss is especially useful in this dataset because blood pixels can be
+      much fewer than background pixels. It prevents the model from obtaining a
+      good result simply by predicting mostly background and encourages it to
+      correctly recover the shape and area of the blood region.
 
-    Multiclass evaluation:
-
-    - the network produces two output channels;
-    - class 0 represents background;
-    - class 1 represents blood;
-    - the corresponding model was trained using CrossEntropyLoss;
-    - predictions are obtained using argmax;
-    - the blood class index is 1.
-
-    Fixed architecture:
-
-    - DeepLabV3+
-    - ResNet-18 encoder
-    - encoder output stride 16
-    - decoder channels 256
-    - atrous rates 12, 24 and 36
-
-    The checkpoint filename is selected automatically according to the
-    segmentation mode:
-
-        deeplabv3plus_binary_best_resnet18_hemo.pth
-
-    or:
-
-        deeplabv3plus_multiclass_best_resnet18_hemo.pth
-
-    Evaluation is performed on the HemoSet test split without random data
-    augmentation and without gradient computation.
-
-    Dataset-level metrics are computed after summing TP, FP, FN and TN
-    across every test image.
-
-    Per-image metrics are computed independently for every image and are
-    reported as mean and standard deviation.
-
-    Per-video metrics are reported for every pig contained in the HemoSet
-    test CSV.
-
-usage:
-    python -m scripts.evaluate_deeplabv3plus_hemoset
+    The best checkpoint is selected using a combined score, giving equal weight
+    to the dataset-level Dice and the mean per-image Dice, and its filename
+    automatically records the segmentation mode that produced it.
 """
 
 import re
