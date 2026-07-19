@@ -199,7 +199,7 @@ def create_model_and_checkpoint():
         checkpoint_filename = (
             f"unet_plus_plus_{SEGMENTATION_MODE}_"
             "best_dice_bleed_seg_"
-            f"{ENCODER_NAME}.pth"
+            f"{ENCODER_NAME}_rab.pth"
         )
 
     elif MODEL_NAME == "deeplabv3plus":
