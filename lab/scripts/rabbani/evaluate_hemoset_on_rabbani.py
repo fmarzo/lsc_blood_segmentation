@@ -1,5 +1,5 @@
 """
-file: evaluate_rabbani_on_hemoset.py
+file: evaluate_hemoset_on_rabbani.py
 
 brief:
     Evaluate a segmentation model trained on the Rabbani Bleeding
@@ -7,39 +7,58 @@ brief:
 
     The model architecture is selected in src/config_split.py through:
 
-        RABBANI_EVALUATION_MODEL = "unet"
+        RABBANI_EVALUATION_MODEL = "unet_plus_plus"
 
     or:
 
         RABBANI_EVALUATION_MODEL = "deeplabv3plus"
 
-    Both architectures use:
+    The segmentation mode is selected through:
 
-    - ResNet-18 encoder
-    - multiclass segmentation
-    - two output classes
-    - class 0: background
-    - class 1: blood
+        SEGMENTATION_MODE = "binary"
+
+    or:
+
+        SEGMENTATION_MODE = "multiclass"
+
+    Binary evaluation:
+
+    - the model produces one output channel representing blood;
+    - the corresponding model was trained using
+      BCEWithLogitsLoss + DiceLoss;
+    - predictions are obtained using sigmoid followed by
+      config_split.BINARY_THRESHOLD;
+    - the blood channel index is 0.
+
+    Multiclass evaluation:
+
+    - the model produces two output channels;
+    - class 0 represents background;
+    - class 1 represents blood;
+    - the corresponding model was trained using CrossEntropyLoss;
+    - predictions are obtained using argmax;
+    - the blood class index is 1.
 
     This is a zero-shot cross-dataset evaluation:
 
         training dataset: Rabbani Bleeding Segmentation
-        test dataset: HemoSet
+        evaluation dataset: HemoSet test split
 
     Dataset-level metrics are computed after summing TP, FP, FN and TN
     across all HemoSet test images.
 
-    Per-image metrics are computed independently for every image and reported
-    using mean and standard deviation.
+    Per-image metrics are computed independently for every image and
+    reported using mean and standard deviation.
 
-    Per-video metrics are also computed for every video in the HemoSet test
-    split.
+    Per-video metrics are computed for every video present in the HemoSet
+    test split.
 
 usage:
     python -m scripts.rabbani.evaluate_rabbani_on_hemoset
 """
 
 import os
+import re
 
 import segmentation_models_pytorch as smp
 import torch
@@ -52,7 +71,7 @@ from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED SEGMENTATION CONFIGURATION
+# MODEL CONFIGURATION
 # ============================================================
 
 MODEL_NAME = (
@@ -61,13 +80,69 @@ MODEL_NAME = (
     .lower()
 )
 
+SUPPORTED_MODELS = {
+    "unet_plus_plus",
+    "deeplabv3plus",
+}
+
+if MODEL_NAME not in SUPPORTED_MODELS:
+    raise ValueError(
+        "Unsupported RABBANI_EVALUATION_MODEL value: "
+        f"{MODEL_NAME}. Supported values are "
+        "'unet_plus_plus' and 'deeplabv3plus'."
+    )
+
+
 ENCODER_NAME = "resnet18"
 
-SEGMENTATION_MODE = "multiclass"
-NUM_CLASSES = 2
 
-BACKGROUND_CLASS_INDEX = 0
-BLOOD_CLASS_INDEX = 1
+# ============================================================
+# SEGMENTATION CONFIGURATION
+# ============================================================
+
+SEGMENTATION_MODE = (
+    config_split.SEGMENTATION_MODE
+    .strip()
+    .lower()
+)
+
+SUPPORTED_SEGMENTATION_MODES = {
+    "binary",
+    "multiclass",
+}
+
+if SEGMENTATION_MODE not in SUPPORTED_SEGMENTATION_MODES:
+    raise ValueError(
+        "Unsupported SEGMENTATION_MODE value: "
+        f"{SEGMENTATION_MODE}. Supported values are "
+        "'binary' and 'multiclass'."
+    )
+
+
+if SEGMENTATION_MODE == "binary":
+
+    NUM_OUTPUT_CHANNELS = 1
+    BLOOD_CLASS_INDEX = 0
+
+    BINARY_THRESHOLD = getattr(
+        config_split,
+        "BINARY_THRESHOLD",
+        0.50,
+    )
+
+else:
+
+    NUM_OUTPUT_CHANNELS = 2
+
+    BACKGROUND_CLASS_INDEX = 0
+    BLOOD_CLASS_INDEX = 1
+
+    BINARY_THRESHOLD = None
+
+
+# ============================================================
+# EVALUATION CONFIGURATION
+# ============================================================
 
 BATCH_SIZE = 4
 NUM_WORKERS = 2
@@ -93,6 +168,13 @@ UPSAMPLING_FACTOR = 4
 # HARDWARE CONFIGURATION
 # ============================================================
 
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "CUDA is not available. "
+        "This script is configured for GPU evaluation."
+    )
+
+
 # The installed cuDNN version does not support the Tesla K80 GPU.
 torch.backends.cudnn.enabled = False
 
@@ -106,26 +188,28 @@ torch.backends.nnpack.set_flags(False)
 
 def create_model_and_checkpoint():
     """
-    Create the Rabbani-trained architecture selected in config_split.py and
-    return its checkpoint path and display name.
-    """
-    if MODEL_NAME == "unet":
+    Create the Rabbani-trained architecture selected in config_split.py.
 
-        model = smp.Unet(
+    The number of output channels and checkpoint filename are selected
+    according to SEGMENTATION_MODE.
+    """
+    if MODEL_NAME == "unet_plus_plus":
+
+        model = smp.UnetPlusPlus(
             encoder_name=ENCODER_NAME,
             encoder_weights=None,
             in_channels=3,
-            classes=NUM_CLASSES,
+            classes=NUM_OUTPUT_CHANNELS,
             activation=None,
         )
 
         checkpoint_filename = (
-            "unet_multiclass_"
+            f"unet_plus_plus_{SEGMENTATION_MODE}_"
             "best_dice_bleed_seg_"
-            "resnet18.pth"
+            f"{ENCODER_NAME}.pth"
         )
 
-        model_display_name = "U-Net"
+        model_display_name = "U-Net++"
 
     elif MODEL_NAME == "deeplabv3plus":
 
@@ -136,25 +220,19 @@ def create_model_and_checkpoint():
             decoder_channels=DECODER_CHANNELS,
             decoder_atrous_rates=DECODER_ATROUS_RATES,
             in_channels=3,
-            classes=NUM_CLASSES,
+            classes=NUM_OUTPUT_CHANNELS,
             activation=None,
             upsampling=UPSAMPLING_FACTOR,
         )
 
+        # The _rab suffix identifies a checkpoint trained on Rabbani.
         checkpoint_filename = (
-            "deeplabv3plus_multiclass_"
+            f"deeplabv3plus_{SEGMENTATION_MODE}_"
             "best_dice_bleed_seg_"
-            "resnet18.pth"
+            f"{ENCODER_NAME}_rab.pth"
         )
 
         model_display_name = "DeepLabV3+"
-
-    else:
-        raise ValueError(
-            "Unsupported Rabbani evaluation model: "
-            f"{MODEL_NAME}. "
-            "Supported values are 'unet' and 'deeplabv3plus'."
-        )
 
     checkpoint_path = os.path.join(
         config_split.MODEL_PRETRAINED_DIR,
@@ -212,8 +290,21 @@ def load_checkpoint(
 
 def prepare_mask(mask):
     """
-    Convert masks from [B, 1, H, W] to [B, H, W] for multiclass evaluation.
+    Prepare masks according to SEGMENTATION_MODE.
+
+    Binary:
+        preserve [B, 1, H, W] and convert values to float.
+
+    Multiclass:
+        convert [B, 1, H, W] to [B, H, W] and use integer indices.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return mask.float().to(
+            DEVICE,
+            non_blocking=True,
+        )
+
     return torch.squeeze(
         mask,
         dim=1,
@@ -225,8 +316,19 @@ def prepare_mask(mask):
 
 def get_predictions(logits):
     """
-    Convert multiclass logits into the predicted class map.
+    Convert logits into the final segmentation prediction.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        probabilities = torch.sigmoid(
+            logits
+        )
+
+        return (
+            probabilities
+            >= BINARY_THRESHOLD
+        ).long()
+
     return torch.argmax(
         logits,
         dim=1,
@@ -238,14 +340,53 @@ def get_segmentation_stats(
     mask,
 ):
     """
-    Compute TP, FP, FN and TN independently for every image and class.
+    Compute TP, FP, FN and TN independently for every image.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return smp.metrics.get_stats(
+            predictions,
+            mask.long(),
+            mode="binary",
+        )
+
     return smp.metrics.get_stats(
         predictions,
         mask,
-        mode=SEGMENTATION_MODE,
-        num_classes=NUM_CLASSES,
+        mode="multiclass",
+        num_classes=NUM_OUTPUT_CHANNELS,
     )
+
+
+def validate_output_shape(
+    logits,
+    mask,
+):
+    """
+    Verify that output and target shapes match the segmentation mode.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        expected_shape = tuple(
+            mask.shape
+        )
+
+    else:
+
+        expected_shape = (
+            mask.shape[0],
+            NUM_OUTPUT_CHANNELS,
+            mask.shape[1],
+            mask.shape[2],
+        )
+
+    if tuple(logits.shape) != expected_shape:
+        raise RuntimeError(
+            "Unexpected model output shape. "
+            f"Received {tuple(logits.shape)}, "
+            f"expected {expected_shape} for "
+            f"{SEGMENTATION_MODE} segmentation."
+        )
 
 
 def compute_metrics(
@@ -255,7 +396,7 @@ def compute_metrics(
     tn,
 ):
     """
-    Compute IoU, Dice, precision and recall for every class.
+    Compute IoU, Dice, precision and recall.
     """
     iou = smp.metrics.iou_score(
         tp,
@@ -297,14 +438,20 @@ def compute_metrics(
     )
 
 
-# ============================================================
-# CUDA CHECK
-# ============================================================
+def extract_video_number(video_id):
+    """
+    Extract the numeric component from identifiers such as pig3 or pig11.
+    """
+    match = re.search(
+        r"(\d+)",
+        str(video_id),
+    )
 
-if not torch.cuda.is_available():
-    raise RuntimeError(
-        "CUDA is not available. "
-        "This script is configured for GPU evaluation."
+    if match is None:
+        return float("inf")
+
+    return int(
+        match.group(1)
     )
 
 
@@ -329,7 +476,7 @@ load_checkpoint(
 # HEMOSET TEST DATASET
 # ============================================================
 
-# HemoSet images use their native rectified 480 x 640 resolution.
+# HemoSet images use the HemoSet evaluation preprocessing.
 eval_transform = create_eval_transform()
 
 
@@ -343,6 +490,16 @@ if len(test_dataset) == 0:
     raise ValueError(
         "The HemoSet test dataset is empty: "
         f"{config_split.CSV_TEST_PATH}"
+    )
+
+
+if (
+    config_split.VIDEOID_STRING
+    not in test_dataset.csv_dirs.columns
+):
+    raise KeyError(
+        "Video ID column not found in the HemoSet test CSV: "
+        f"{config_split.VIDEOID_STRING}"
     )
 
 
@@ -373,7 +530,8 @@ print(
 )
 
 print(
-    f"Model configuration value: {MODEL_NAME}"
+    f"Model configuration value: "
+    f"{MODEL_NAME}"
 )
 
 print(
@@ -405,32 +563,58 @@ print(
 )
 
 print(
-    f"Number of classes: "
-    f"{NUM_CLASSES}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: "
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+
+print(
+    "Training dataset: "
+    "Rabbani Bleeding Segmentation"
 )
 
 print(
-    "Training dataset: Rabbani Bleeding Segmentation"
+    "Evaluation dataset: "
+    "HemoSet test split"
 )
 
 print(
-    "Evaluation dataset: HemoSet test split"
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Test CSV: "
+    f"{config_split.CSV_TEST_PATH}"
 )
 
 print(
-    f"Test CSV: {config_split.CSV_TEST_PATH}"
+    f"Test images: "
+    f"{len(test_dataset)}"
 )
 
 print(
-    f"Test images: {len(test_dataset)}"
-)
-
-print(
-    f"Test batches: {len(test_loader)}"
+    f"Test batches: "
+    f"{len(test_loader)}"
 )
 
 
@@ -464,6 +648,28 @@ with torch.inference_mode():
             test_images
         )
 
+        if batch_index == 0:
+
+            validate_output_shape(
+                logits,
+                test_masks,
+            )
+
+            print(
+                f"Input batch shape: "
+                f"{tuple(test_images.shape)}"
+            )
+
+            print(
+                f"Output batch shape: "
+                f"{tuple(logits.shape)}"
+            )
+
+            print(
+                f"Mask batch shape: "
+                f"{tuple(test_masks.shape)}"
+            )
+
         predictions = get_predictions(
             logits
         )
@@ -478,7 +684,6 @@ with torch.inference_mode():
             test_masks,
         )
 
-        # Preserve one row for every HemoSet test image.
         tp_batches.append(
             batch_tp.cpu()
         )
@@ -496,13 +701,14 @@ with torch.inference_mode():
         )
 
         if batch_index % 50 == 0:
+
             print(
                 f"Evaluated batch "
-                f"{batch_index}/{len(test_loader)}"
+                f"{batch_index}/"
+                f"{len(test_loader)}"
             )
 
 
-# Join all batches while keeping every test image separate.
 tp = torch.cat(
     tp_batches,
     dim=0,
@@ -541,7 +747,6 @@ tn = torch.cat(
 )
 
 
-# Select only the blood class.
 iou_per_image = iou_classes[
     :,
     BLOOD_CLASS_INDEX,
@@ -563,18 +768,30 @@ recall_per_image = recall_classes[
 ]
 
 
-mean_iou = iou_per_image.mean().item()
+mean_iou = (
+    iou_per_image
+    .mean()
+    .item()
+)
 
-std_iou = iou_per_image.std(
-    correction=0,
-).item()
+std_iou = (
+    iou_per_image
+    .std(correction=0)
+    .item()
+)
 
 
-mean_dice = dice_per_image.mean().item()
+mean_dice = (
+    dice_per_image
+    .mean()
+    .item()
+)
 
-std_dice = dice_per_image.std(
-    correction=0,
-).item()
+std_dice = (
+    dice_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 mean_precision = (
@@ -583,9 +800,11 @@ mean_precision = (
     .item()
 )
 
-std_precision = precision_per_image.std(
-    correction=0,
-).item()
+std_precision = (
+    precision_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 mean_recall = (
@@ -594,17 +813,17 @@ mean_recall = (
     .item()
 )
 
-std_recall = recall_per_image.std(
-    correction=0,
-).item()
+std_recall = (
+    recall_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 # ============================================================
 # DATASET-LEVEL METRICS
 # ============================================================
 
-# Sum confusion statistics across all HemoSet test images while preserving
-# the class dimension.
 global_tp = tp.sum(
     dim=0,
 )
@@ -676,7 +895,9 @@ empty_images_mask = (
 )
 
 
-total_images = iou_per_image.numel()
+total_images = (
+    iou_per_image.numel()
+)
 
 
 images_with_blood = (
@@ -709,7 +930,8 @@ print(
 )
 
 print(
-    f"Total images: {total_images}"
+    f"Total images: "
+    f"{total_images}"
 )
 
 print(
@@ -739,22 +961,18 @@ print(
 
 
 # ============================================================
-# PER-VIDEO HEMOSET METRICS
+# HEMOSET VIDEO IDENTIFIERS
 # ============================================================
-
-if (
-    config_split.VIDEOID_STRING
-    not in test_dataset.csv_dirs.columns
-):
-    raise KeyError(
-        "Video ID column not found in the HemoSet test CSV: "
-        f"{config_split.VIDEOID_STRING}"
-    )
-
 
 test_video_ids = test_dataset.csv_dirs[
     config_split.VIDEOID_STRING
 ].astype(str)
+
+
+video_ids = sorted(
+    test_video_ids.unique(),
+    key=extract_video_number,
+)
 
 
 print(
@@ -766,22 +984,21 @@ print(
 )
 
 
+# ============================================================
+# PER-VIDEO HEMOSET METRICS
+# ============================================================
+
 print(
     "\n----- Per-video blood metrics -----"
 )
 
 
-# Use the order defined for the HemoSet test split.
-for video_id in config_split.TEST_VIDEO_ID:
-
-    video_id_string = str(
-        video_id
-    )
+for video_id in video_ids:
 
     video_mask = torch.tensor(
         (
             test_video_ids
-            == video_id_string
+            == str(video_id)
         ).to_numpy(),
         dtype=torch.bool,
     )
@@ -791,19 +1008,9 @@ for video_id in config_split.TEST_VIDEO_ID:
     )
 
     if video_image_count == 0:
-
-        print(
-            f"\nVideo: {video_id}"
-        )
-
-        print(
-            "No images found in the test CSV."
-        )
-
         continue
 
 
-    # Per-image metrics for the current HemoSet video.
     video_iou_per_image = iou_per_image[
         video_mask
     ]
@@ -821,7 +1028,6 @@ for video_id in config_split.TEST_VIDEO_ID:
     ]
 
 
-    # Dataset-level confusion statistics for the current HemoSet video.
     video_tp = tp[
         video_mask
     ].sum(
@@ -932,11 +1138,13 @@ for video_id in config_split.TEST_VIDEO_ID:
 
 
     print(
-        f"\nVideo: {video_id}"
+        f"\nVideo: "
+        f"{video_id}"
     )
 
     print(
-        f"Images: {video_image_count}"
+        f"Images: "
+        f"{video_image_count}"
     )
 
     print(
@@ -994,11 +1202,13 @@ print(
 )
 
 print(
-    f"Model: {model_display_name}"
+    f"Model: "
+    f"{model_display_name}"
 )
 
 print(
-    f"Encoder: {ENCODER_NAME}"
+    f"Encoder: "
+    f"{ENCODER_NAME}"
 )
 
 print(
@@ -1007,19 +1217,48 @@ print(
 )
 
 print(
-    "Training dataset: Rabbani Bleeding Segmentation"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: "
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+
+print(
+    "Training dataset: "
+    "Rabbani Bleeding Segmentation"
 )
 
 print(
-    "Test dataset: HemoSet"
+    "Test dataset: "
+    "HemoSet"
 )
 
 print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 print(
-    f"Test images: {total_images}"
+    f"Test images: "
+    f"{total_images}"
 )
 
 
@@ -1028,19 +1267,23 @@ print(
 )
 
 print(
-    f"IoU:       {global_iou:.4f}"
+    f"IoU:       "
+    f"{global_iou:.4f}"
 )
 
 print(
-    f"Dice:      {global_dice:.4f}"
+    f"Dice:      "
+    f"{global_dice:.4f}"
 )
 
 print(
-    f"Precision: {global_precision:.4f}"
+    f"Precision: "
+    f"{global_precision:.4f}"
 )
 
 print(
-    f"Recall:    {global_recall:.4f}"
+    f"Recall:    "
+    f"{global_recall:.4f}"
 )
 
 

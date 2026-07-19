@@ -1,36 +1,55 @@
 """
-file: train_rabbani.py
+file: train_unet_plus_plus_resnet18_v1p0.py
 
 brief:
-    This script trains a U-Net model on the Rabbani Bleed Seg dataset.
+    Train a U-Net++ ResNet-18 model on the Rabbani Bleeding Segmentation
+    dataset.
 
-    The architecture is fixed to U-Net with a ResNet-18 encoder pretrained
+    The segmentation approach is selected through:
+
+        config_split.SEGMENTATION_MODE
+
+    Supported values:
+
+        "binary"
+        "multiclass"
+
+    Binary segmentation:
+
+    - the model produces one output channel representing blood;
+    - BCEWithLogitsLoss evaluates every pixel independently;
+    - DiceLoss encourages overlap between predicted and ground-truth blood;
+    - the total loss is BCEWithLogitsLoss + DiceLoss;
+    - predictions are obtained using sigmoid and BINARY_THRESHOLD.
+
+    Multiclass segmentation:
+
+    - the model produces two output channels;
+    - class 0 represents background;
+    - class 1 represents blood;
+    - CrossEntropyLoss is used;
+    - predictions are obtained using argmax.
+
+    The architecture is fixed to U-Net++ with a ResNet-18 encoder pretrained
     on ImageNet.
 
-    The segmentation task is fixed to multiclass segmentation with two output
-    classes:
-
-    - class 0: background
-    - class 1: blood
-
-    CrossEntropyLoss is used as the only segmentation loss.
-
-    The training procedure includes several measures intended to improve
-    optimization stability:
+    The training procedure includes:
 
     - deterministic random seeds
-    - batch size 2 with gradient accumulation
+    - physical batch size 2
+    - gradient accumulation over two batches
+    - effective batch size approximately 4
     - removal of incomplete training batches
     - frozen encoder BatchNorm running statistics
-    - lower learning rate for the pretrained encoder
+    - separate encoder and decoder learning rates
     - AdamW optimizer
     - gradient clipping
     - adaptive learning-rate reduction
     - early stopping
-    - checkpoint selection using both global and per-image Dice
+    - checkpoint selection using global and per-image Dice
 
 usage:
-    python -m scripts.rabbani.train_rabbani 60
+    python -m scripts.rabbani.train_unet_plus_plus_resnet18_v1p0 60
 
     If the number of epochs is omitted, config_split.DEFAULT_EPOCHS is used.
 """
@@ -47,24 +66,59 @@ from torch.utils.data import DataLoader
 
 from src import config_split
 from src.data_transforms import (
-    create_bleed_train_transform,
     create_bleed_eval_transform,
+    create_bleed_train_transform,
 )
 from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED MODEL CONFIGURATION
+# MODEL CONFIGURATION
 # ============================================================
 
-MODEL_NAME = "unet"
+MODEL_NAME = "unet_plus_plus"
 ENCODER_NAME = "resnet18"
 
-SEGMENTATION_MODE = "multiclass"
-NUM_CLASSES = 2
+SEGMENTATION_MODE = (
+    config_split.SEGMENTATION_MODE
+    .strip()
+    .lower()
+)
 
-BACKGROUND_CLASS_INDEX = 0
-BLOOD_CLASS_INDEX = 1
+SUPPORTED_SEGMENTATION_MODES = {
+    "binary",
+    "multiclass",
+}
+
+
+if SEGMENTATION_MODE not in SUPPORTED_SEGMENTATION_MODES:
+    raise ValueError(
+        "Unsupported SEGMENTATION_MODE value: "
+        f"{SEGMENTATION_MODE}. "
+        "Supported values are 'binary' and 'multiclass'."
+    )
+
+
+if SEGMENTATION_MODE == "binary":
+
+    NUM_OUTPUT_CHANNELS = 1
+    BLOOD_CLASS_INDEX = 0
+
+    BINARY_THRESHOLD = getattr(
+        config_split,
+        "BINARY_THRESHOLD",
+        0.50,
+    )
+
+else:
+
+    NUM_OUTPUT_CHANNELS = 2
+
+    BACKGROUND_CLASS_INDEX = 0
+    BLOOD_CLASS_INDEX = 1
+
+    BINARY_THRESHOLD = None
+
 
 DEVICE = torch.device("cuda")
 
@@ -73,41 +127,25 @@ DEVICE = torch.device("cuda")
 # TRAINING CONFIGURATION
 # ============================================================
 
-# A physical batch size of 2 is safer for 480x864 images on the Tesla K80.
+# Rabbani images use a 480 x 864 resolution. A physical batch size of two is
+# safer on the Tesla K80.
 BATCH_SIZE = 2
 
-# Two consecutive batches are accumulated before updating the weights.
-# The effective batch size is therefore approximately 4.
+# Two consecutive physical batches are accumulated before updating the model.
 ACCUMULATION_STEPS = 2
 
 NUM_WORKERS = 2
 
-# Use a lower learning rate for the pretrained encoder and a higher learning
-# rate for the randomly initialized decoder and segmentation head.
 ENCODER_LEARNING_RATE = 1e-4
 DECODER_LEARNING_RATE = 3e-4
 
 WEIGHT_DECAY = 1e-4
 
-# Prevent unusually difficult batches from producing excessively large
-# parameter updates.
 MAX_GRAD_NORM = 1.0
 
-# Reduce learning rates when the validation selection score stops improving.
-LR_REDUCTION_FACTOR = 0.5
-LR_PATIENCE = 4
-LR_THRESHOLD = 0.001
-MIN_LEARNING_RATE = 1e-6
-
-# Stop training after this number of epochs without a meaningful improvement.
 EARLY_STOPPING_PATIENCE = 12
-
-# A new checkpoint is saved only when the score improves by at least this
-# amount.
 MIN_CHECKPOINT_IMPROVEMENT = 0.001
 
-# The checkpoint selection score considers both pixel-level performance and
-# consistency across individual images.
 GLOBAL_DICE_WEIGHT = 0.5
 MEAN_IMAGE_DICE_WEIGHT = 0.5
 
@@ -115,17 +153,33 @@ RANDOM_SEED = 42
 
 
 # ============================================================
+# SCHEDULER CONFIGURATION
+# ============================================================
+
+LR_REDUCTION_FACTOR = 0.5
+LR_PATIENCE = 4
+LR_THRESHOLD = 0.001
+MIN_LEARNING_RATE = 1e-6
+
+
+# ============================================================
 # HARDWARE CONFIGURATION
 # ============================================================
+
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "CUDA is not available. "
+        "This script is configured for GPU training."
+    )
+
 
 # The installed cuDNN version does not support the Tesla K80 GPU.
 torch.backends.cudnn.enabled = False
 
-# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+# Disable NNPACK to avoid unsupported hardware warnings.
 torch.backends.nnpack.set_flags(False)
 
 torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
 
 
 # ============================================================
@@ -134,7 +188,10 @@ torch.backends.cudnn.deterministic = True
 
 def configure_reproducibility(seed):
     """
-    Configure the random number generators used by Python, NumPy and PyTorch.
+    Seed Python, NumPy and PyTorch.
+
+    Exact deterministic CUDA execution is not forced because some
+    segmentation operations do not provide deterministic implementations.
     """
     os.environ["PYTHONHASHSEED"] = str(seed)
 
@@ -144,17 +201,12 @@ def configure_reproducibility(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    torch.use_deterministic_algorithms(
-        True,
-        warn_only=True,
-    )
-
 
 def seed_worker(worker_id):
     """
-    Give each DataLoader worker a deterministic random seed.
+    Give every DataLoader worker a reproducible random seed.
     """
-    worker_seed = torch.initial_seed() % (2**32)
+    worker_seed = torch.initial_seed() % (2 ** 32)
 
     random.seed(worker_seed)
     np.random.seed(worker_seed)
@@ -173,14 +225,25 @@ data_generator.manual_seed(
 
 
 # ============================================================
-# HELPER FUNCTIONS
+# SEGMENTATION HELPERS
 # ============================================================
 
 def prepare_mask(mask):
     """
-    Convert the mask from [B, 1, H, W] to [B, H, W] and prepare it for
-    CrossEntropyLoss.
+    Prepare masks according to the selected segmentation mode.
+
+    Binary masks keep the [B, 1, H, W] shape and use floating-point values.
+
+    Multiclass masks are converted from [B, 1, H, W] to [B, H, W] and use
+    integer class indices.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return mask.float().to(
+            DEVICE,
+            non_blocking=True,
+        )
+
     return torch.squeeze(
         mask,
         dim=1,
@@ -190,35 +253,119 @@ def prepare_mask(mask):
     )
 
 
+def compute_loss(
+    logits,
+    mask,
+    bce_loss,
+    dice_loss,
+    cross_entropy_loss,
+):
+    """
+    Compute the loss corresponding to the selected segmentation mode.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        bce_value = bce_loss(
+            logits,
+            mask,
+        )
+
+        dice_value = dice_loss(
+            logits,
+            mask,
+        )
+
+        return (
+            bce_value
+            + dice_value
+        )
+
+    return cross_entropy_loss(
+        logits,
+        mask,
+    )
+
+
 def get_predictions(logits):
     """
-    Convert multiclass logits into the predicted class map.
+    Convert model logits into the final predicted segmentation map.
     """
-    return logits.argmax(
+    if SEGMENTATION_MODE == "binary":
+
+        probabilities = torch.sigmoid(
+            logits
+        )
+
+        return (
+            probabilities
+            >= BINARY_THRESHOLD
+        ).long()
+
+    return torch.argmax(
+        logits,
         dim=1,
     )
 
 
-def get_segmentation_stats(predictions, mask):
+def get_segmentation_stats(
+    predictions,
+    mask,
+):
     """
-    Compute TP, FP, FN and TN separately for every image and class.
+    Compute TP, FP, FN and TN separately for every image.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return smp.metrics.get_stats(
+            predictions,
+            mask.long(),
+            mode="binary",
+        )
+
     return smp.metrics.get_stats(
         predictions,
         mask,
-        mode=SEGMENTATION_MODE,
-        num_classes=NUM_CLASSES,
+        mode="multiclass",
+        num_classes=NUM_OUTPUT_CHANNELS,
     )
+
+
+def validate_output_shape(
+    logits,
+    mask,
+):
+    """
+    Verify that output and target dimensions match the segmentation mode.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        expected_shape = tuple(
+            mask.shape
+        )
+
+    else:
+
+        expected_shape = (
+            mask.shape[0],
+            NUM_OUTPUT_CHANNELS,
+            mask.shape[1],
+            mask.shape[2],
+        )
+
+    if tuple(logits.shape) != expected_shape:
+        raise RuntimeError(
+            "Unexpected model output shape. "
+            f"Received {tuple(logits.shape)}, "
+            f"expected {expected_shape} for "
+            f"{SEGMENTATION_MODE} segmentation."
+        )
 
 
 def freeze_encoder_batch_norm_statistics(model):
     """
-    Keep the running mean and variance of the pretrained encoder BatchNorm
-    layers fixed.
+    Keep the running statistics of pretrained encoder BatchNorm layers fixed.
 
-    BatchNorm affine parameters remain trainable because requires_grad is not
-    modified. Only the running statistics are prevented from being updated
-    using very small batches.
+    BatchNorm affine parameters remain trainable.
     """
     for module in model.encoder.modules():
 
@@ -239,17 +386,18 @@ def get_optimizer_learning_rates(optimizer):
     ]
 
 
-if not torch.cuda.is_available():
-    raise RuntimeError(
-        "CUDA is not available. "
-        "This script is configured for GPU training."
+# ============================================================
+# NUMBER OF EPOCHS
+# ============================================================
+
+if len(sys.argv) > 1:
+
+    n_epochs = int(
+        sys.argv[1]
     )
 
-
-# Read the maximum number of epochs from the command line.
-if len(sys.argv) > 1:
-    n_epochs = int(sys.argv[1])
 else:
+
     n_epochs = config_split.DEFAULT_EPOCHS
 
 
@@ -260,11 +408,16 @@ if n_epochs <= 0:
 
 
 # ============================================================
-# DATASET AND TRANSFORMS
+# RABBANI DATASET AND TRANSFORMS
 # ============================================================
 
-train_transform = create_bleed_train_transform()
-eval_transform = create_bleed_eval_transform()
+train_transform = (
+    create_bleed_train_transform()
+)
+
+eval_transform = (
+    create_bleed_eval_transform()
+)
 
 
 train_ds = CustomImageDataset(
@@ -279,6 +432,22 @@ valid_ds = CustomImageDataset(
 )
 
 
+if len(train_ds) == 0:
+    raise ValueError(
+        "The Rabbani training dataset is empty."
+    )
+
+
+if len(valid_ds) == 0:
+    raise ValueError(
+        "The Rabbani validation dataset is empty."
+    )
+
+
+# ============================================================
+# DATA LOADERS
+# ============================================================
+
 train_bleed_dl = DataLoader(
     train_ds,
     batch_size=BATCH_SIZE,
@@ -286,8 +455,7 @@ train_bleed_dl = DataLoader(
     shuffle=True,
     pin_memory=True,
 
-    # Avoid a final batch containing only one image. This is especially
-    # important for the trainable BatchNorm layers in the U-Net decoder.
+    # Avoid a final batch containing only one image.
     drop_last=True,
 
     worker_init_fn=seed_worker,
@@ -327,38 +495,57 @@ if len(valid_bleed_dl) == 0:
     )
 
 
-# Inspect the shape of the first training batch.
+# ============================================================
+# FIRST BATCH INSPECTION
+# ============================================================
+
 train_img, train_mask = next(
     iter(train_bleed_dl)
 )
 
 
 print(
-    "======== RABBANI STABLE TRAINING CONFIGURATION ========"
+    "======== RABBANI U-NET++ TRAINING CONFIGURATION ========"
 )
 
 print(
-    f"Feature batch shape: {train_img.size()}"
+    f"Feature batch shape: "
+    f"{train_img.size()}"
 )
 
 print(
-    f"Labels batch shape: {train_mask.size()}"
+    f"Labels batch shape: "
+    f"{train_mask.size()}"
 )
 
 print(
-    f"Training samples: {len(train_ds)}"
+    f"Training CSV: "
+    f"{config_split.CSV_TRAIN_PATH_V1P0}"
 )
 
 print(
-    f"Validation samples: {len(valid_ds)}"
+    f"Validation CSV: "
+    f"{config_split.CSV_VALID_PATH_V1P0}"
 )
 
 print(
-    f"Training batches: {len(train_bleed_dl)}"
+    f"Training samples: "
+    f"{len(train_ds)}"
 )
 
 print(
-    f"Validation batches: {len(valid_bleed_dl)}"
+    f"Validation samples: "
+    f"{len(valid_ds)}"
+)
+
+print(
+    f"Training batches: "
+    f"{len(train_bleed_dl)}"
+)
+
+print(
+    f"Validation batches: "
+    f"{len(valid_bleed_dl)}"
 )
 
 print(
@@ -370,19 +557,40 @@ print(
 )
 
 print(
-    f"Segmentation mode: {SEGMENTATION_MODE}"
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
 )
 
 print(
-    f"Number of classes: {NUM_CLASSES}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+print(
+    f"Maximum epochs: "
+    f"{n_epochs}"
 )
 
 print(
-    f"Maximum epochs: {n_epochs}"
-)
-
-print(
-    f"Physical batch size: {BATCH_SIZE}"
+    f"Physical batch size: "
+    f"{BATCH_SIZE}"
 )
 
 print(
@@ -401,7 +609,8 @@ print(
 )
 
 print(
-    f"Random seed: {RANDOM_SEED}"
+    f"Random seed: "
+    f"{RANDOM_SEED}"
 )
 
 
@@ -409,14 +618,52 @@ print(
 # MODEL
 # ============================================================
 
-model = smp.Unet(
+model = smp.UnetPlusPlus(
     encoder_name=ENCODER_NAME,
     encoder_weights="imagenet",
     in_channels=3,
-    classes=NUM_CLASSES,
+    classes=NUM_OUTPUT_CHANNELS,
+    activation=None,
 ).to(
     DEVICE
 )
+
+
+# ============================================================
+# OUTPUT SHAPE CHECK
+# ============================================================
+
+with torch.inference_mode():
+
+    shape_check_images = train_img.to(
+        DEVICE
+    )
+
+    shape_check_masks = prepare_mask(
+        train_mask
+    )
+
+    shape_check_logits = model(
+        shape_check_images
+    )
+
+    validate_output_shape(
+        shape_check_logits,
+        shape_check_masks,
+    )
+
+
+print(
+    f"Model output shape: "
+    f"{tuple(shape_check_logits.shape)}"
+)
+
+
+del shape_check_images
+del shape_check_masks
+del shape_check_logits
+del train_img
+del train_mask
 
 
 # ============================================================
@@ -459,13 +706,35 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 
 
 # ============================================================
-# LOSS
+# LOSS FUNCTIONS
 # ============================================================
 
-# Keep CrossEntropyLoss as the only segmentation loss.
-loss_function = torch.nn.CrossEntropyLoss().to(
-    DEVICE
-)
+if SEGMENTATION_MODE == "binary":
+
+    bce_loss = (
+        torch.nn.BCEWithLogitsLoss()
+        .to(DEVICE)
+    )
+
+    dice_loss = (
+        smp.losses.DiceLoss(
+            mode="binary",
+            from_logits=True,
+        )
+        .to(DEVICE)
+    )
+
+    cross_entropy_loss = None
+
+else:
+
+    bce_loss = None
+    dice_loss = None
+
+    cross_entropy_loss = (
+        torch.nn.CrossEntropyLoss()
+        .to(DEVICE)
+    )
 
 
 # ============================================================
@@ -481,23 +750,26 @@ os.makedirs(
 checkpoint_path = os.path.join(
     config_split.MODEL_PRETRAINED_DIR,
     (
-        "unet_multiclass_"
+        f"unet_plus_plus_{SEGMENTATION_MODE}_"
         "best_dice_bleed_seg_"
-        "resnet18.pth"
+        f"{ENCODER_NAME}.pth"
     ),
 )
 
 
 best_selection_score = float("-inf")
+
 best_global_dice = float("-inf")
 best_mean_image_dice = float("-inf")
 
 best_epoch = 0
+
 epochs_without_improvement = 0
 
 
 print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 
@@ -509,12 +781,13 @@ for epoch in range(n_epochs):
 
     print(
         f"\n------------ EPOCH: "
-        f"{epoch + 1}/{n_epochs} ------------"
+        f"{epoch + 1}/{n_epochs} "
+        f"------------"
     )
 
     model.train()
 
-    # model.train() puts every BatchNorm layer into training mode.
+    # model.train() changes every BatchNorm layer to training mode.
     # Restore only the pretrained encoder BatchNorm layers to evaluation mode.
     freeze_encoder_batch_norm_statistics(
         model
@@ -558,9 +831,19 @@ for epoch in range(n_epochs):
         )
 
 
-        loss_train_value = loss_function(
-            logits,
-            train_mask,
+        if batch_index == 0:
+            validate_output_shape(
+                logits,
+                train_mask,
+            )
+
+
+        loss_train_value = compute_loss(
+            logits=logits,
+            mask=train_mask,
+            bce_loss=bce_loss,
+            dice_loss=dice_loss,
+            cross_entropy_loss=cross_entropy_loss,
         )
 
 
@@ -569,23 +852,24 @@ for epoch in range(n_epochs):
         ):
             raise FloatingPointError(
                 "Non-finite training loss detected at "
-                f"epoch {epoch + 1}, batch {batch_index}."
+                f"epoch {epoch + 1}, "
+                f"batch {batch_index}."
             )
 
 
-        # Determine the number of batches in the current accumulation group.
-        # This also correctly handles a possible final incomplete group.
         accumulation_group_start = (
             batch_index
             // ACCUMULATION_STEPS
             * ACCUMULATION_STEPS
         )
 
+
         accumulation_group_end = min(
             accumulation_group_start
             + ACCUMULATION_STEPS,
             number_of_train_batches,
         )
+
 
         current_accumulation_group_size = (
             accumulation_group_end
@@ -715,9 +999,19 @@ for epoch in range(n_epochs):
             )
 
 
-            loss_valid_value = loss_function(
-                logits,
-                val_mask,
+            if batch_index == 0:
+                validate_output_shape(
+                    logits,
+                    val_mask,
+                )
+
+
+            loss_valid_value = compute_loss(
+                logits=logits,
+                mask=val_mask,
+                bce_loss=bce_loss,
+                dice_loss=dice_loss,
+                cross_entropy_loss=cross_entropy_loss,
             )
 
 
@@ -726,7 +1020,8 @@ for epoch in range(n_epochs):
             ):
                 raise FloatingPointError(
                     "Non-finite validation loss detected at "
-                    f"epoch {epoch + 1}, batch {batch_index}."
+                    f"epoch {epoch + 1}, "
+                    f"batch {batch_index}."
                 )
 
 
@@ -751,16 +1046,18 @@ for epoch in range(n_epochs):
             )
 
 
-            batch_tp, batch_fp, batch_fn, batch_tn = (
-                get_segmentation_stats(
-                    predictions,
-                    val_mask,
-                )
+            (
+                batch_tp,
+                batch_fp,
+                batch_fn,
+                batch_tn,
+            ) = get_segmentation_stats(
+                predictions,
+                val_mask,
             )
 
 
-            # Keep one row for every image. This allows both global and
-            # per-image metrics to be calculated.
+            # Preserve one row for every validation image.
             tp_batches.append(
                 batch_tp.cpu()
             )
@@ -793,7 +1090,6 @@ for epoch in range(n_epochs):
     )
 
 
-    # Join validation statistics while preserving the image dimension.
     val_tp = torch.cat(
         tp_batches,
         dim=0,
@@ -954,7 +1250,6 @@ for epoch in range(n_epochs):
     ].item()
 
 
-    # Combine global pixel-level quality and image-level consistency.
     selection_score = (
         GLOBAL_DICE_WEIGHT
         * global_blood_dice
@@ -978,18 +1273,28 @@ for epoch in range(n_epochs):
 
     meaningful_improvement = (
         selection_score
-        > best_selection_score
+        >
+        best_selection_score
         + MIN_CHECKPOINT_IMPROVEMENT
     )
 
 
     if meaningful_improvement:
 
-        best_selection_score = selection_score
-        best_global_dice = global_blood_dice
-        best_mean_image_dice = mean_image_dice
+        best_selection_score = (
+            selection_score
+        )
+
+        best_global_dice = (
+            global_blood_dice
+        )
+
+        best_mean_image_dice = (
+            mean_image_dice
+        )
 
         best_epoch = epoch + 1
+
         epochs_without_improvement = 0
 
 
@@ -1000,7 +1305,7 @@ for epoch in range(n_epochs):
 
 
         print(
-            "New best stable checkpoint saved."
+            "\nNew best checkpoint saved."
         )
 
         print(
@@ -1019,7 +1324,8 @@ for epoch in range(n_epochs):
         )
 
         print(
-            f"Best epoch: {best_epoch}"
+            f"Best epoch: "
+            f"{best_epoch}"
         )
 
     else:
@@ -1027,7 +1333,6 @@ for epoch in range(n_epochs):
         epochs_without_improvement += 1
 
 
-    # Reduce the learning rate only when validation performance plateaus.
     scheduler.step(
         selection_score
     )
@@ -1040,29 +1345,38 @@ for epoch in range(n_epochs):
     )
 
 
+    # ========================================================
+    # EPOCH SUMMARY
+    # ========================================================
+
     print(
         f"\n----- Average values for epoch "
         f"{epoch + 1} -----"
     )
 
     print(
-        f"avg_train_loss: {avg_train_loss:.6f}"
+        f"avg_train_loss: "
+        f"{avg_train_loss:.6f}"
     )
 
     print(
-        f"avg_val_loss: {avg_val_loss:.6f}"
+        f"avg_val_loss: "
+        f"{avg_val_loss:.6f}"
     )
 
     print(
-        f"avg_gradient_norm: {avg_gradient_norm:.6f}"
+        f"avg_gradient_norm: "
+        f"{avg_gradient_norm:.6f}"
     )
 
     print(
-        f"global_blood_iou: {global_blood_iou:.6f}"
+        f"global_blood_iou: "
+        f"{global_blood_iou:.6f}"
     )
 
     print(
-        f"global_blood_dice: {global_blood_dice:.6f}"
+        f"global_blood_dice: "
+        f"{global_blood_dice:.6f}"
     )
 
     print(
@@ -1088,7 +1402,8 @@ for epoch in range(n_epochs):
     )
 
     print(
-        f"selection_score: {selection_score:.6f}"
+        f"selection_score: "
+        f"{selection_score:.6f}"
     )
 
     print(
@@ -1097,7 +1412,8 @@ for epoch in range(n_epochs):
     )
 
     print(
-        f"best_epoch: {best_epoch}"
+        f"best_epoch: "
+        f"{best_epoch}"
     )
 
     print(
@@ -1111,6 +1427,10 @@ for epoch in range(n_epochs):
     )
 
 
+    # ========================================================
+    # EARLY STOPPING
+    # ========================================================
+
     if (
         epochs_without_improvement
         >= EARLY_STOPPING_PATIENCE
@@ -1121,19 +1441,42 @@ for epoch in range(n_epochs):
         )
 
         print(
-            f"No meaningful validation improvement for "
+            "No meaningful validation improvement for "
             f"{EARLY_STOPPING_PATIENCE} consecutive epochs."
         )
 
         break
 
 
+# ============================================================
+# FINAL SUMMARY
+# ============================================================
+
 print(
     "\n======== RABBANI TRAINING COMPLETED ========"
 )
 
 print(
-    f"Best epoch: {best_epoch}"
+    f"Model: {MODEL_NAME}"
+)
+
+print(
+    f"Encoder: {ENCODER_NAME}"
+)
+
+print(
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
+)
+
+print(
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+print(
+    f"Best epoch: "
+    f"{best_epoch}"
 )
 
 print(
@@ -1152,5 +1495,6 @@ print(
 )
 
 print(
-    f"Checkpoint saved to: {checkpoint_path}"
+    f"Checkpoint saved to: "
+    f"{checkpoint_path}"
 )

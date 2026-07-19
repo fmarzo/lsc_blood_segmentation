@@ -4,45 +4,65 @@ file: evaluate_deeplabv3plus_hemoset.py
 brief:
     Evaluate the best DeepLabV3+ ResNet-18 checkpoint trained on HemoSet.
 
-    The model configuration is fixed and does not depend on config_split:
+    The segmentation mode is selected in src/config_split.py through:
 
-    - architecture: DeepLabV3+
-    - encoder: ResNet-18
-    - encoder output stride: 16
-    - decoder channels: 256
-    - atrous rates: 12, 24 and 36
-    - segmentation mode: multiclass
-    - output classes: 2
-    - class 0: background
-    - class 1: blood
+        SEGMENTATION_MODE = "binary"
 
-    The model was trained using standard multiclass CrossEntropyLoss.
+    or:
 
-    This is not a binary segmentation model and it was not trained using
-    BCEWithLogitsLoss. The network produces two logits for every pixel, and
-    the final prediction is obtained using argmax across the class dimension.
+        SEGMENTATION_MODE = "multiclass"
 
-    The checkpoint evaluated by this script is:
+    Binary evaluation:
 
-        deeplabv3plus_multiclass_best_resnet18.pth
+    - the network produces one output channel representing blood;
+    - the corresponding model was trained using
+      BCEWithLogitsLoss + DiceLoss;
+    - predictions are obtained using sigmoid followed by
+      config_split.BINARY_THRESHOLD;
+    - the blood channel index is 0.
 
-    The evaluation is performed on the HemoSet test split without data
+    Multiclass evaluation:
+
+    - the network produces two output channels;
+    - class 0 represents background;
+    - class 1 represents blood;
+    - the corresponding model was trained using CrossEntropyLoss;
+    - predictions are obtained using argmax;
+    - the blood class index is 1.
+
+    Fixed architecture:
+
+    - DeepLabV3+
+    - ResNet-18 encoder
+    - encoder output stride 16
+    - decoder channels 256
+    - atrous rates 12, 24 and 36
+
+    The checkpoint filename is selected automatically according to the
+    segmentation mode:
+
+        deeplabv3plus_binary_best_resnet18_hemo.pth
+
+    or:
+
+        deeplabv3plus_multiclass_best_resnet18_hemo.pth
+
+    Evaluation is performed on the HemoSet test split without random data
     augmentation and without gradient computation.
 
-    Dataset-level metrics are computed after summing TP, FP, FN and TN across
-    all test images.
+    Dataset-level metrics are computed after summing TP, FP, FN and TN
+    across every test image.
 
-    Per-image metrics are computed independently for every image and reported
-    as mean and standard deviation.
+    Per-image metrics are computed independently for every image and are
+    reported as mean and standard deviation.
 
-    Per-video metrics are also reported for every pig present in the HemoSet
+    Per-video metrics are reported for every pig contained in the HemoSet
     test CSV.
 
 usage:
     python -m scripts.evaluate_deeplabv3plus_hemoset
 """
 
-import os
 import re
 from pathlib import Path
 
@@ -51,12 +71,13 @@ import torch
 
 from torch.utils.data import DataLoader
 
+from src import config_split
 from src.data_transforms import create_eval_transform
 from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED MODEL CONFIGURATION
+# MODEL CONFIGURATION
 # ============================================================
 
 MODEL_NAME = "deeplabv3plus"
@@ -64,11 +85,64 @@ MODEL_DISPLAY_NAME = "DeepLabV3+"
 
 ENCODER_NAME = "resnet18"
 
-SEGMENTATION_MODE = "multiclass"
-NUM_CLASSES = 2
 
-BACKGROUND_CLASS_INDEX = 0
-BLOOD_CLASS_INDEX = 1
+# ============================================================
+# SEGMENTATION CONFIGURATION
+# ============================================================
+
+SEGMENTATION_MODE = (
+    config_split.SEGMENTATION_MODE
+    .strip()
+    .lower()
+)
+
+
+SUPPORTED_SEGMENTATION_MODES = {
+    "binary",
+    "multiclass",
+}
+
+
+if SEGMENTATION_MODE not in SUPPORTED_SEGMENTATION_MODES:
+    raise ValueError(
+        "Unsupported SEGMENTATION_MODE value: "
+        f"{SEGMENTATION_MODE}. "
+        "Supported values are 'binary' and 'multiclass'."
+    )
+
+
+if SEGMENTATION_MODE == "binary":
+
+    NUM_OUTPUT_CHANNELS = 1
+    BLOOD_CLASS_INDEX = 0
+
+    BINARY_THRESHOLD = getattr(
+        config_split,
+        "BINARY_THRESHOLD",
+        0.50,
+    )
+
+    TRAINING_LOSS_NAME = (
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+else:
+
+    NUM_OUTPUT_CHANNELS = 2
+
+    BACKGROUND_CLASS_INDEX = 0
+    BLOOD_CLASS_INDEX = 1
+
+    BINARY_THRESHOLD = None
+
+    TRAINING_LOSS_NAME = (
+        "CrossEntropyLoss"
+    )
+
+
+# ============================================================
+# DEEPLABV3+ CONFIGURATION
+# ============================================================
 
 ENCODER_OUTPUT_STRIDE = 16
 DECODER_CHANNELS = 256
@@ -77,13 +151,14 @@ UPSAMPLING_FACTOR = 4
 
 
 # ============================================================
-# FIXED EVALUATION CONFIGURATION
+# EVALUATION CONFIGURATION
 # ============================================================
 
 BATCH_SIZE = 4
 NUM_WORKERS = 2
 
 VIDEO_ID_COLUMN = "video_id"
+
 
 DEVICE = torch.device(
     "cuda"
@@ -93,14 +168,14 @@ DEVICE = torch.device(
 
 
 # ============================================================
-# FIXED PATHS
+# PATHS
 # ============================================================
 
-# This file is expected inside:
+# The script is expected inside:
 #
 #     lab/scripts/evaluate_deeplabv3plus_hemoset.py
 #
-# Therefore, parents[1] is the lab directory.
+# Therefore parents[1] identifies the lab directory.
 LAB_DIRECTORY = Path(
     __file__
 ).resolve().parents[1]
@@ -120,7 +195,10 @@ MODEL_PRETRAINED_DIRECTORY = Path(
 
 CHECKPOINT_PATH = (
     MODEL_PRETRAINED_DIRECTORY
-    / "deeplabv3plus_multiclass_best_resnet18_hemo.pth"
+    / (
+        f"deeplabv3plus_{SEGMENTATION_MODE}_"
+        f"best_{ENCODER_NAME}_hemo.pth"
+    )
 )
 
 
@@ -150,8 +228,9 @@ def create_model():
     """
     Create the exact DeepLabV3+ architecture used during HemoSet training.
 
-    ImageNet weights are not downloaded during evaluation because the complete
-    trained state dictionary is loaded from the checkpoint.
+    The number of output channels is selected using SEGMENTATION_MODE.
+    ImageNet weights are not loaded because the complete trained state
+    dictionary is restored from the checkpoint.
     """
     return smp.DeepLabV3Plus(
         encoder_name=ENCODER_NAME,
@@ -160,7 +239,7 @@ def create_model():
         decoder_channels=DECODER_CHANNELS,
         decoder_atrous_rates=DECODER_ATROUS_RATES,
         in_channels=3,
-        classes=NUM_CLASSES,
+        classes=NUM_OUTPUT_CHANNELS,
         activation=None,
         upsampling=UPSAMPLING_FACTOR,
     ).to(
@@ -173,7 +252,7 @@ def load_checkpoint(
     checkpoint_path,
 ):
     """
-    Load a plain model state dictionary or a structured checkpoint.
+    Load a plain state dictionary or a structured checkpoint.
     """
     if not checkpoint_path.is_file():
         raise FileNotFoundError(
@@ -195,6 +274,7 @@ def load_checkpoint(
         ]
 
     else:
+
         state_dict = checkpoint
 
     model.load_state_dict(
@@ -210,10 +290,21 @@ def load_checkpoint(
 
 def prepare_mask(mask):
     """
-    Convert multiclass masks from [B, 1, H, W] to [B, H, W].
+    Prepare masks according to SEGMENTATION_MODE.
 
-    CrossEntropyLoss and multiclass evaluation expect integer class indices.
+    Binary mode:
+        preserve [B, 1, H, W] and convert values to float.
+
+    Multiclass mode:
+        convert [B, 1, H, W] to [B, H, W] and use integer class indices.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return mask.float().to(
+            DEVICE,
+            non_blocking=True,
+        )
+
     return torch.squeeze(
         mask,
         dim=1,
@@ -225,10 +316,19 @@ def prepare_mask(mask):
 
 def get_predictions(logits):
     """
-    Convert two-channel multiclass logits into the predicted class map.
-
-    No sigmoid and no binary threshold are used.
+    Convert logits into the final segmentation prediction.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        probabilities = torch.sigmoid(
+            logits
+        )
+
+        return (
+            probabilities
+            >= BINARY_THRESHOLD
+        ).long()
+
     return torch.argmax(
         logits,
         dim=1,
@@ -240,20 +340,29 @@ def validate_output_shape(
     masks,
 ):
     """
-    Check that the model output matches the expected multiclass dimensions.
+    Verify that model outputs and masks have compatible dimensions.
     """
-    expected_shape = (
-        masks.shape[0],
-        NUM_CLASSES,
-        masks.shape[1],
-        masks.shape[2],
-    )
+    if SEGMENTATION_MODE == "binary":
+
+        expected_shape = tuple(
+            masks.shape
+        )
+
+    else:
+
+        expected_shape = (
+            masks.shape[0],
+            NUM_OUTPUT_CHANNELS,
+            masks.shape[1],
+            masks.shape[2],
+        )
 
     if tuple(logits.shape) != expected_shape:
         raise RuntimeError(
             "Unexpected DeepLabV3+ output shape. "
             f"Received {tuple(logits.shape)}, "
-            f"expected {expected_shape}."
+            f"expected {expected_shape} for "
+            f"{SEGMENTATION_MODE} segmentation."
         )
 
 
@@ -262,13 +371,21 @@ def get_segmentation_stats(
     masks,
 ):
     """
-    Compute TP, FP, FN and TN for every image and class.
+    Compute TP, FP, FN and TN independently for every image.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return smp.metrics.get_stats(
+            predictions,
+            masks.long(),
+            mode="binary",
+        )
+
     return smp.metrics.get_stats(
         predictions,
         masks,
-        mode=SEGMENTATION_MODE,
-        num_classes=NUM_CLASSES,
+        mode="multiclass",
+        num_classes=NUM_OUTPUT_CHANNELS,
     )
 
 
@@ -279,7 +396,7 @@ def compute_metrics(
     tn,
 ):
     """
-    Compute IoU, Dice, precision and recall for every class.
+    Compute IoU, Dice, precision and recall.
     """
     iou = smp.metrics.iou_score(
         tp,
@@ -373,8 +490,7 @@ load_checkpoint(
 # HEMOSET TEST DATASET
 # ============================================================
 
-# HemoSet test data receive evaluation preprocessing only.
-# No random crop, rotation, flip or color augmentation is applied.
+# No random augmentation is applied during evaluation.
 eval_transform = create_eval_transform()
 
 
@@ -413,7 +529,7 @@ test_loader = DataLoader(
 
 
 # ============================================================
-# EVALUATION CONFIGURATION
+# CONFIGURATION SUMMARY
 # ============================================================
 
 print(
@@ -449,32 +565,42 @@ print(
 )
 
 print(
-    f"Number of output classes: "
-    f"{NUM_CLASSES}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
 )
 
 print(
-    "Training loss: standard multiclass CrossEntropyLoss"
+    f"Training loss: "
+    f"{TRAINING_LOSS_NAME}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+
+print(
+    f"Checkpoint: "
+    f"{CHECKPOINT_PATH}"
 )
 
 print(
-    "Binary BCE loss: no"
+    f"Test CSV: "
+    f"{HEMOSET_TEST_CSV_PATH}"
 )
 
 print(
-    f"Checkpoint: {CHECKPOINT_PATH}"
+    f"Test images: "
+    f"{len(test_dataset)}"
 )
 
 print(
-    f"Test CSV: {HEMOSET_TEST_CSV_PATH}"
-)
-
-print(
-    f"Test images: {len(test_dataset)}"
-)
-
-print(
-    f"Test batches: {len(test_loader)}"
+    f"Test batches: "
+    f"{len(test_loader)}"
 )
 
 
@@ -509,6 +635,7 @@ with torch.inference_mode():
         )
 
         if batch_index == 0:
+
             validate_output_shape(
                 logits,
                 test_masks,
@@ -561,13 +688,14 @@ with torch.inference_mode():
         )
 
         if batch_index % 50 == 0:
+
             print(
                 f"Evaluated batch "
-                f"{batch_index}/{len(test_loader)}"
+                f"{batch_index}/"
+                f"{len(test_loader)}"
             )
 
 
-# Join all batches while keeping every test image separate.
 tp = torch.cat(
     tp_batches,
     dim=0,
@@ -606,7 +734,6 @@ tn = torch.cat(
 )
 
 
-# Keep only the blood class.
 iou_per_image = iou_classes[
     :,
     BLOOD_CLASS_INDEX,
@@ -628,18 +755,30 @@ recall_per_image = recall_classes[
 ]
 
 
-mean_iou = iou_per_image.mean().item()
+mean_iou = (
+    iou_per_image
+    .mean()
+    .item()
+)
 
-std_iou = iou_per_image.std(
-    correction=0
-).item()
+std_iou = (
+    iou_per_image
+    .std(correction=0)
+    .item()
+)
 
 
-mean_dice = dice_per_image.mean().item()
+mean_dice = (
+    dice_per_image
+    .mean()
+    .item()
+)
 
-std_dice = dice_per_image.std(
-    correction=0
-).item()
+std_dice = (
+    dice_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 mean_precision = (
@@ -648,9 +787,11 @@ mean_precision = (
     .item()
 )
 
-std_precision = precision_per_image.std(
-    correction=0
-).item()
+std_precision = (
+    precision_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 mean_recall = (
@@ -659,16 +800,17 @@ mean_recall = (
     .item()
 )
 
-std_recall = recall_per_image.std(
-    correction=0
-).item()
+std_recall = (
+    recall_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 # ============================================================
 # DATASET-LEVEL METRICS
 # ============================================================
 
-# Sum confusion statistics across all test images while preserving classes.
 global_tp = tp.sum(
     dim=0
 )
@@ -740,7 +882,9 @@ empty_images_mask = (
 )
 
 
-total_images = iou_per_image.numel()
+total_images = (
+    iou_per_image.numel()
+)
 
 
 images_with_blood = (
@@ -773,7 +917,8 @@ print(
 )
 
 print(
-    f"Total images: {total_images}"
+    f"Total images: "
+    f"{total_images}"
 )
 
 print(
@@ -853,7 +998,6 @@ for video_id in video_ids:
         continue
 
 
-    # Per-image metrics for the current video.
     video_iou_per_image = iou_per_image[
         video_mask
     ]
@@ -871,7 +1015,6 @@ for video_id in video_ids:
     ]
 
 
-    # Global confusion statistics for the current video.
     video_tp = tp[
         video_mask
     ].sum(
@@ -918,9 +1061,11 @@ for video_id in video_ids:
         BLOOD_CLASS_INDEX
     ].item()
 
-    video_global_precision = video_precision_classes[
-        BLOOD_CLASS_INDEX
-    ].item()
+    video_global_precision = (
+        video_precision_classes[
+            BLOOD_CLASS_INDEX
+        ].item()
+    )
 
     video_global_recall = video_recall_classes[
         BLOOD_CLASS_INDEX
@@ -980,11 +1125,13 @@ for video_id in video_ids:
 
 
     print(
-        f"\nVideo: {video_id}"
+        f"\nVideo: "
+        f"{video_id}"
     )
 
     print(
-        f"Images: {video_image_count}"
+        f"Images: "
+        f"{video_image_count}"
     )
 
     print(
@@ -1041,11 +1188,13 @@ print(
 )
 
 print(
-    f"Model: {MODEL_DISPLAY_NAME}"
+    f"Model: "
+    f"{MODEL_DISPLAY_NAME}"
 )
 
 print(
-    f"Encoder: {ENCODER_NAME}"
+    f"Encoder: "
+    f"{ENCODER_NAME}"
 )
 
 print(
@@ -1054,15 +1203,32 @@ print(
 )
 
 print(
-    "Training loss: standard multiclass CrossEntropyLoss"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
 )
 
 print(
-    f"Checkpoint: {CHECKPOINT_PATH}"
+    f"Training loss: "
+    f"{TRAINING_LOSS_NAME}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+
+print(
+    f"Checkpoint: "
+    f"{CHECKPOINT_PATH}"
 )
 
 print(
-    f"Test images: {total_images}"
+    f"Test images: "
+    f"{total_images}"
 )
 
 
@@ -1071,19 +1237,23 @@ print(
 )
 
 print(
-    f"IoU:       {global_iou:.4f}"
+    f"IoU:       "
+    f"{global_iou:.4f}"
 )
 
 print(
-    f"Dice:      {global_dice:.4f}"
+    f"Dice:      "
+    f"{global_dice:.4f}"
 )
 
 print(
-    f"Precision: {global_precision:.4f}"
+    f"Precision: "
+    f"{global_precision:.4f}"
 )
 
 print(
-    f"Recall:    {global_recall:.4f}"
+    f"Recall:    "
+    f"{global_recall:.4f}"
 )
 
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=deep_hemo_18_lsc
+#SBATCH --job-name=u18_bin_hemo_lsc
 #SBATCH --partition=all_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -12,7 +12,7 @@
 
 source /homes/$USER/cvcs2026/venv/bin/activate
 
-script_file="train_deeplabv3plus_hemoset"
+script_file="train_unet_resnet18"
 
 echo "${script_file} execution"
 

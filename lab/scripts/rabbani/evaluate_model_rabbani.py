@@ -5,27 +5,47 @@ brief:
     Evaluate a segmentation model trained on the Rabbani bleeding
     segmentation dataset.
 
-    The model architecture is selected in src/config_split.py using:
+    The architecture is selected in src/config_split.py through:
 
-        RABBANI_EVALUATION_MODEL = "unet"
+        RABBANI_EVALUATION_MODEL = "unet_plus_plus"
 
     or:
 
         RABBANI_EVALUATION_MODEL = "deeplabv3plus"
 
-    Both models use:
+    The segmentation mode is selected through:
 
-    - ResNet-18 encoder
-    - multiclass segmentation
-    - two output classes
-    - class 0: background
-    - class 1: blood
+        SEGMENTATION_MODE = "binary"
 
-    Dataset-level metrics are computed after summing TP, FP, FN and TN
-    across all test images.
+    or:
 
-    Per-image metrics are computed independently for every test image and
-    are reported using mean and standard deviation.
+        SEGMENTATION_MODE = "multiclass"
+
+    Binary evaluation:
+
+    - the model has one output channel representing blood;
+    - the corresponding model was trained using
+      BCEWithLogitsLoss + DiceLoss;
+    - predictions are obtained using sigmoid followed by
+      config_split.BINARY_THRESHOLD;
+    - the blood channel index is 0.
+
+    Multiclass evaluation:
+
+    - the model has two output channels;
+    - class 0 represents background;
+    - class 1 represents blood;
+    - the corresponding model was trained using CrossEntropyLoss;
+    - predictions are obtained using argmax;
+    - the blood class index is 1.
+
+    All supported models use a ResNet-18 encoder.
+
+    Dataset-level metrics are computed by summing TP, FP, FN and TN across
+    all test images before calculating the metrics.
+
+    Per-image metrics are computed independently for every image and reported
+    as mean and standard deviation.
 
 usage:
     python -m scripts.rabbani.evaluate_model_rabbani
@@ -44,17 +64,80 @@ from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED RABBANI MODEL CONFIGURATION
+# MODEL CONFIGURATION
 # ============================================================
 
-MODEL_NAME = config_split.RABBANI_EVALUATION_MODEL
+MODEL_NAME = (
+    config_split.RABBANI_EVALUATION_MODEL
+    .strip()
+    .lower()
+)
+
+SUPPORTED_MODELS = {
+    "unet_plus_plus",
+    "deeplabv3plus",
+}
+
+
+if MODEL_NAME not in SUPPORTED_MODELS:
+    raise ValueError(
+        "Unsupported RABBANI_EVALUATION_MODEL value: "
+        f"{MODEL_NAME}. "
+        "Supported values are 'unet_plus_plus' and 'deeplabv3plus'."
+    )
+
+
 ENCODER_NAME = "resnet18"
 
-SEGMENTATION_MODE = "multiclass"
-NUM_CLASSES = 2
 
-BACKGROUND_CLASS_INDEX = 0
-BLOOD_CLASS_INDEX = 1
+# ============================================================
+# SEGMENTATION CONFIGURATION
+# ============================================================
+
+SEGMENTATION_MODE = (
+    config_split.SEGMENTATION_MODE
+    .strip()
+    .lower()
+)
+
+SUPPORTED_SEGMENTATION_MODES = {
+    "binary",
+    "multiclass",
+}
+
+
+if SEGMENTATION_MODE not in SUPPORTED_SEGMENTATION_MODES:
+    raise ValueError(
+        "Unsupported SEGMENTATION_MODE value: "
+        f"{SEGMENTATION_MODE}. "
+        "Supported values are 'binary' and 'multiclass'."
+    )
+
+
+if SEGMENTATION_MODE == "binary":
+
+    NUM_OUTPUT_CHANNELS = 1
+    BLOOD_CLASS_INDEX = 0
+
+    BINARY_THRESHOLD = getattr(
+        config_split,
+        "BINARY_THRESHOLD",
+        0.50,
+    )
+
+else:
+
+    NUM_OUTPUT_CHANNELS = 2
+
+    BACKGROUND_CLASS_INDEX = 0
+    BLOOD_CLASS_INDEX = 1
+
+    BINARY_THRESHOLD = None
+
+
+# ============================================================
+# EVALUATION CONFIGURATION
+# ============================================================
 
 BATCH_SIZE = 4
 NUM_WORKERS = 2
@@ -73,16 +156,24 @@ DEVICE = torch.device(
 ENCODER_OUTPUT_STRIDE = 16
 DECODER_CHANNELS = 256
 DECODER_ATROUS_RATES = (12, 24, 36)
+UPSAMPLING_FACTOR = 4
 
 
 # ============================================================
 # HARDWARE CONFIGURATION
 # ============================================================
 
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "CUDA is not available. "
+        "This script is configured for GPU evaluation."
+    )
+
+
 # The installed cuDNN version does not support the Tesla K80 GPU.
 torch.backends.cudnn.enabled = False
 
-# Disable NNPACK to avoid unsupported hardware warnings on the CPU node.
+# Disable NNPACK to avoid unsupported hardware warnings.
 torch.backends.nnpack.set_flags(False)
 
 
@@ -92,26 +183,23 @@ torch.backends.nnpack.set_flags(False)
 
 def create_model_and_checkpoint():
     """
-    Create the model selected in config_split.py and return its checkpoint
-    path.
-
-    The evaluation model must exactly match the architecture used during
-    training.
+    Create the selected architecture with the correct number of output
+    channels and return the corresponding checkpoint path.
     """
-    if MODEL_NAME == "unet":
+    if MODEL_NAME == "unet_plus_plus":
 
-        model = smp.Unet(
+        model = smp.UnetPlusPlus(
             encoder_name=ENCODER_NAME,
             encoder_weights=None,
             in_channels=3,
-            classes=NUM_CLASSES,
+            classes=NUM_OUTPUT_CHANNELS,
             activation=None,
         )
 
         checkpoint_filename = (
-            "unet_multiclass_"
+            f"unet_plus_plus_{SEGMENTATION_MODE}_"
             "best_dice_bleed_seg_"
-            "resnet18.pth"
+            f"{ENCODER_NAME}.pth"
         )
 
     elif MODEL_NAME == "deeplabv3plus":
@@ -123,22 +211,15 @@ def create_model_and_checkpoint():
             decoder_channels=DECODER_CHANNELS,
             decoder_atrous_rates=DECODER_ATROUS_RATES,
             in_channels=3,
-            classes=NUM_CLASSES,
+            classes=NUM_OUTPUT_CHANNELS,
             activation=None,
-            upsampling=4,
+            upsampling=UPSAMPLING_FACTOR,
         )
 
         checkpoint_filename = (
-            "deeplabv3plus_multiclass_"
+            f"deeplabv3plus_{SEGMENTATION_MODE}_"
             "best_dice_bleed_seg_"
-            "resnet18_rab.pth"
-        )
-
-    else:
-        raise ValueError(
-            "Unsupported Rabbani evaluation model: "
-            f"{MODEL_NAME}. "
-            "Supported values are 'unet' and 'deeplabv3plus'."
+            f"{ENCODER_NAME}_rab.pth"
         )
 
     checkpoint_path = os.path.join(
@@ -196,9 +277,21 @@ def load_checkpoint(
 
 def prepare_mask(mask):
     """
-    Convert the mask from [B, 1, H, W] to [B, H, W] and prepare it for
-    multiclass evaluation.
+    Prepare the target mask according to SEGMENTATION_MODE.
+
+    Binary mode:
+        keep [B, 1, H, W] and convert to float.
+
+    Multiclass mode:
+        convert [B, 1, H, W] to [B, H, W] and use integer class indices.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return mask.float().to(
+            DEVICE,
+            non_blocking=True,
+        )
+
     return torch.squeeze(
         mask,
         dim=1,
@@ -210,12 +303,21 @@ def prepare_mask(mask):
 
 def get_predictions(logits):
     """
-    Convert multiclass logits into the predicted class map.
-
-    With two classes, argmax is equivalent to using a blood probability
-    threshold of 0.50.
+    Convert model logits into the final segmentation prediction.
     """
-    return logits.argmax(
+    if SEGMENTATION_MODE == "binary":
+
+        probabilities = torch.sigmoid(
+            logits
+        )
+
+        return (
+            probabilities
+            >= BINARY_THRESHOLD
+        ).long()
+
+    return torch.argmax(
+        logits,
         dim=1,
     )
 
@@ -225,24 +327,101 @@ def get_segmentation_stats(
     mask,
 ):
     """
-    Compute TP, FP, FN and TN independently for every image and class.
+    Compute TP, FP, FN and TN independently for every image.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return smp.metrics.get_stats(
+            predictions,
+            mask.long(),
+            mode="binary",
+        )
+
     return smp.metrics.get_stats(
         predictions,
         mask,
-        mode=SEGMENTATION_MODE,
-        num_classes=NUM_CLASSES,
+        mode="multiclass",
+        num_classes=NUM_OUTPUT_CHANNELS,
     )
 
 
-# ============================================================
-# CUDA CHECK
-# ============================================================
+def validate_output_shape(
+    logits,
+    mask,
+):
+    """
+    Verify that model outputs and masks have compatible shapes.
+    """
+    if SEGMENTATION_MODE == "binary":
 
-if not torch.cuda.is_available():
-    raise RuntimeError(
-        "CUDA is not available. "
-        "This script is configured for GPU evaluation."
+        expected_shape = tuple(
+            mask.shape
+        )
+
+    else:
+
+        expected_shape = (
+            mask.shape[0],
+            NUM_OUTPUT_CHANNELS,
+            mask.shape[1],
+            mask.shape[2],
+        )
+
+    if tuple(logits.shape) != expected_shape:
+        raise RuntimeError(
+            "Unexpected model output shape. "
+            f"Received {tuple(logits.shape)}, "
+            f"expected {expected_shape} for "
+            f"{SEGMENTATION_MODE} segmentation."
+        )
+
+
+def compute_metrics(
+    tp,
+    fp,
+    fn,
+    tn,
+):
+    """
+    Compute IoU, Dice, precision and recall.
+    """
+    iou = smp.metrics.iou_score(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    dice = smp.metrics.f1_score(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    precision = smp.metrics.precision(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    recall = smp.metrics.recall(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    return (
+        iou,
+        dice,
+        precision,
+        recall,
     )
 
 
@@ -295,6 +474,10 @@ test_bleed_dl = DataLoader(
 )
 
 
+# ============================================================
+# CONFIGURATION SUMMARY
+# ============================================================
+
 print(
     "======== RABBANI MODEL EVALUATION ========"
 )
@@ -307,6 +490,7 @@ print(
     f"Encoder: {ENCODER_NAME}"
 )
 
+
 if MODEL_NAME == "deeplabv3plus":
 
     print(
@@ -315,9 +499,15 @@ if MODEL_NAME == "deeplabv3plus":
     )
 
     print(
+        f"Decoder channels: "
+        f"{DECODER_CHANNELS}"
+    )
+
+    print(
         f"Decoder atrous rates: "
         f"{DECODER_ATROUS_RATES}"
     )
+
 
 print(
     f"Segmentation mode: "
@@ -325,11 +515,33 @@ print(
 )
 
 print(
-    f"Number of classes: {NUM_CLASSES}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
 )
 
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: "
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+
 print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 print(
@@ -338,7 +550,13 @@ print(
 )
 
 print(
-    f"Test images: {len(test_ds)}"
+    f"Test images: "
+    f"{len(test_ds)}"
+)
+
+print(
+    f"Test batches: "
+    f"{len(test_bleed_dl)}"
 )
 
 
@@ -372,6 +590,28 @@ with torch.inference_mode():
             test_img
         )
 
+        if batch_index == 0:
+
+            validate_output_shape(
+                logits,
+                test_mask,
+            )
+
+            print(
+                f"Input batch shape: "
+                f"{tuple(test_img.shape)}"
+            )
+
+            print(
+                f"Output batch shape: "
+                f"{tuple(logits.shape)}"
+            )
+
+            print(
+                f"Mask batch shape: "
+                f"{tuple(test_mask.shape)}"
+            )
+
         predictions = get_predictions(
             logits
         )
@@ -403,6 +643,7 @@ with torch.inference_mode():
         )
 
         if batch_index % 50 == 0:
+
             print(
                 f"Evaluated batch "
                 f"{batch_index}/"
@@ -410,7 +651,6 @@ with torch.inference_mode():
             )
 
 
-# Join all batches while keeping every test image separate.
 tp = torch.cat(
     tp_batches,
     dim=0,
@@ -436,60 +676,33 @@ tn = torch.cat(
 # PER-IMAGE METRICS
 # ============================================================
 
-iou_classes = smp.metrics.iou_score(
+(
+    iou_classes,
+    dice_classes,
+    precision_classes,
+    recall_classes,
+) = compute_metrics(
     tp,
     fp,
     fn,
     tn,
-    reduction="none",
 )
 
 
-dice_classes = smp.metrics.f1_score(
-    tp,
-    fp,
-    fn,
-    tn,
-    reduction="none",
-)
-
-
-precision_classes = smp.metrics.precision(
-    tp,
-    fp,
-    fn,
-    tn,
-    reduction="none",
-)
-
-
-recall_classes = smp.metrics.recall(
-    tp,
-    fp,
-    fn,
-    tn,
-    reduction="none",
-)
-
-
-# Select only the blood class.
 iou_per_image = iou_classes[
     :,
     BLOOD_CLASS_INDEX,
 ]
-
 
 dice_per_image = dice_classes[
     :,
     BLOOD_CLASS_INDEX,
 ]
 
-
 precision_per_image = precision_classes[
     :,
     BLOOD_CLASS_INDEX,
 ]
-
 
 recall_per_image = recall_classes[
     :,
@@ -497,42 +710,62 @@ recall_per_image = recall_classes[
 ]
 
 
-mean_iou = iou_per_image.mean().item()
+mean_iou = (
+    iou_per_image
+    .mean()
+    .item()
+)
 
-std_iou = iou_per_image.std(
-    correction=0
-).item()
+std_iou = (
+    iou_per_image
+    .std(correction=0)
+    .item()
+)
 
 
-mean_dice = dice_per_image.mean().item()
+mean_dice = (
+    dice_per_image
+    .mean()
+    .item()
+)
 
-std_dice = dice_per_image.std(
-    correction=0
-).item()
+std_dice = (
+    dice_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 mean_precision = (
-    precision_per_image.mean().item()
+    precision_per_image
+    .mean()
+    .item()
 )
 
-std_precision = precision_per_image.std(
-    correction=0
-).item()
+std_precision = (
+    precision_per_image
+    .std(correction=0)
+    .item()
+)
 
 
-mean_recall = recall_per_image.mean().item()
+mean_recall = (
+    recall_per_image
+    .mean()
+    .item()
+)
 
-std_recall = recall_per_image.std(
-    correction=0
-).item()
+std_recall = (
+    recall_per_image
+    .std(correction=0)
+    .item()
+)
 
 
 # ============================================================
 # DATASET-LEVEL METRICS
 # ============================================================
 
-# Sum the confusion statistics across all test images while preserving
-# the separate classes.
 global_tp = tp.sum(
     dim=0
 )
@@ -550,39 +783,16 @@ global_tn = tn.sum(
 )
 
 
-global_iou_classes = smp.metrics.iou_score(
+(
+    global_iou_classes,
+    global_dice_classes,
+    global_precision_classes,
+    global_recall_classes,
+) = compute_metrics(
     global_tp,
     global_fp,
     global_fn,
     global_tn,
-    reduction="none",
-)
-
-
-global_dice_classes = smp.metrics.f1_score(
-    global_tp,
-    global_fp,
-    global_fn,
-    global_tn,
-    reduction="none",
-)
-
-
-global_precision_classes = smp.metrics.precision(
-    global_tp,
-    global_fp,
-    global_fn,
-    global_tn,
-    reduction="none",
-)
-
-
-global_recall_classes = smp.metrics.recall(
-    global_tp,
-    global_fp,
-    global_fn,
-    global_tn,
-    reduction="none",
 )
 
 
@@ -590,16 +800,13 @@ global_iou = global_iou_classes[
     BLOOD_CLASS_INDEX
 ].item()
 
-
 global_dice = global_dice_classes[
     BLOOD_CLASS_INDEX
 ].item()
 
-
 global_precision = global_precision_classes[
     BLOOD_CLASS_INDEX
 ].item()
-
 
 global_recall = global_recall_classes[
     BLOOD_CLASS_INDEX
@@ -615,7 +822,6 @@ blood_gt_pixels = (
     + fn[:, BLOOD_CLASS_INDEX]
 )
 
-
 blood_pred_pixels = (
     tp[:, BLOOD_CLASS_INDEX]
     + fp[:, BLOOD_CLASS_INDEX]
@@ -626,13 +832,14 @@ images_with_blood_mask = (
     blood_gt_pixels > 0
 )
 
-
 empty_images_mask = (
     blood_gt_pixels == 0
 )
 
 
-total_images = iou_per_image.numel()
+total_images = (
+    iou_per_image.numel()
+)
 
 
 images_with_blood = (
@@ -640,7 +847,6 @@ images_with_blood = (
     .sum()
     .item()
 )
-
 
 empty_images = (
     empty_images_mask
@@ -666,7 +872,8 @@ print(
 )
 
 print(
-    f"Total images: {total_images}"
+    f"Total images: "
+    f"{total_images}"
 )
 
 print(
@@ -695,8 +902,6 @@ print(
 )
 
 
-# The Rabbani split currently uses one common dataset identifier rather than
-# separate patient or video identifiers.
 if (
     config_split.VIDEOID_STRING
     in test_ds.csv_dirs.columns
@@ -722,11 +927,13 @@ print(
 )
 
 print(
-    f"Model: {MODEL_NAME}"
+    f"Model: "
+    f"{MODEL_NAME}"
 )
 
 print(
-    f"Encoder: {ENCODER_NAME}"
+    f"Encoder: "
+    f"{ENCODER_NAME}"
 )
 
 print(
@@ -735,11 +942,38 @@ print(
 )
 
 print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: "
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+
+print(
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 print(
-    f"Test images: {total_images}"
+    f"Test images: "
+    f"{total_images}"
 )
 
 
@@ -748,19 +982,23 @@ print(
 )
 
 print(
-    f"IoU:       {global_iou:.4f}"
+    f"IoU:       "
+    f"{global_iou:.4f}"
 )
 
 print(
-    f"Dice:      {global_dice:.4f}"
+    f"Dice:      "
+    f"{global_dice:.4f}"
 )
 
 print(
-    f"Precision: {global_precision:.4f}"
+    f"Precision: "
+    f"{global_precision:.4f}"
 )
 
 print(
-    f"Recall:    {global_recall:.4f}"
+    f"Recall:    "
+    f"{global_recall:.4f}"
 )
 
 

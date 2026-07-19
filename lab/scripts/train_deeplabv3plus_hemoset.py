@@ -2,25 +2,55 @@
 file: train_deeplabv3plus_hemoset.py
 
 brief:
-    Train a DeepLabV3+ segmentation model on HemoSet.
+    Train a DeepLabV3+ ResNet-18 segmentation model on HemoSet.
 
-    Fixed model configuration:
+    The segmentation mode is selected through:
 
-    - architecture: DeepLabV3+
-    - encoder: ResNet-18 pretrained on ImageNet
-    - encoder output stride: 16
-    - segmentation mode: multiclass
-    - classes: background and blood
-    - loss: CrossEntropyLoss
-    - physical batch size: 4
+        config_split.SEGMENTATION_MODE
 
-    The training split receives HemoSet online augmentation, while the
-    validation split receives only the HemoSet evaluation preprocessing.
+    Supported values:
 
-    The checkpoint is selected using a balanced score composed of:
+        "binary"
+        "multiclass"
+
+    Binary segmentation:
+
+    - the model produces one output channel representing blood;
+    - BCEWithLogitsLoss evaluates every pixel independently;
+    - DiceLoss encourages overlap between predicted and ground-truth blood;
+    - the total loss is BCEWithLogitsLoss + DiceLoss;
+    - predictions use sigmoid followed by
+      config_split.BINARY_THRESHOLD;
+    - the blood channel index is 0.
+
+    Multiclass segmentation:
+
+    - the model produces two output channels;
+    - class 0 represents background;
+    - class 1 represents blood;
+    - CrossEntropyLoss is used;
+    - predictions are obtained using argmax;
+    - the blood class index is 1.
+
+    Fixed architecture:
+
+    - DeepLabV3+
+    - ResNet-18 encoder pretrained on ImageNet
+    - encoder output stride 16
+    - decoder channels 256
+    - atrous rates 12, 24 and 36
+    - physical batch size 4
+
+    The HemoSet training split receives online augmentation, while the
+    validation split receives only evaluation preprocessing.
+
+    The checkpoint is selected using:
 
         0.5 * dataset-level Dice
         0.5 * mean per-image Dice
+
+    The checkpoint filename automatically contains the selected
+    segmentation mode.
 
 usage:
     python -m scripts.train_deeplabv3plus_hemoset 50
@@ -45,17 +75,54 @@ from src.hemoset_dataset_v2 import CustomImageDataset
 
 
 # ============================================================
-# FIXED MODEL CONFIGURATION
+# MODEL CONFIGURATION
 # ============================================================
 
 MODEL_NAME = "deeplabv3plus"
 ENCODER_NAME = "resnet18"
 
-SEGMENTATION_MODE = "multiclass"
-NUM_CLASSES = 2
 
-BACKGROUND_CLASS_INDEX = 0
-BLOOD_CLASS_INDEX = 1
+SEGMENTATION_MODE = (
+    config_split.SEGMENTATION_MODE
+    .strip()
+    .lower()
+)
+
+
+SUPPORTED_SEGMENTATION_MODES = {
+    "binary",
+    "multiclass",
+}
+
+
+if SEGMENTATION_MODE not in SUPPORTED_SEGMENTATION_MODES:
+    raise ValueError(
+        "Unsupported SEGMENTATION_MODE value: "
+        f"{SEGMENTATION_MODE}. "
+        "Supported values are 'binary' and 'multiclass'."
+    )
+
+
+if SEGMENTATION_MODE == "binary":
+
+    NUM_OUTPUT_CHANNELS = 1
+    BLOOD_CLASS_INDEX = 0
+
+    BINARY_THRESHOLD = getattr(
+        config_split,
+        "BINARY_THRESHOLD",
+        0.50,
+    )
+
+else:
+
+    NUM_OUTPUT_CHANNELS = 2
+
+    BACKGROUND_CLASS_INDEX = 0
+    BLOOD_CLASS_INDEX = 1
+
+    BINARY_THRESHOLD = None
+
 
 ENCODER_OUTPUT_STRIDE = 16
 DECODER_CHANNELS = 256
@@ -84,12 +151,15 @@ MIN_CHECKPOINT_IMPROVEMENT = 0.001
 GLOBAL_DICE_WEIGHT = 0.5
 MEAN_IMAGE_DICE_WEIGHT = 0.5
 
+
+# ============================================================
+# SCHEDULER CONFIGURATION
+# ============================================================
+
 LR_REDUCTION_FACTOR = 0.5
 LR_PATIENCE = 4
 LR_THRESHOLD = 0.001
 MINIMUM_LEARNING_RATE = 1e-6
-
-EPSILON = 1e-12
 
 
 # ============================================================
@@ -112,6 +182,8 @@ torch.backends.cudnn.enabled = False
 # Disable NNPACK to avoid unsupported hardware warnings.
 torch.backends.nnpack.set_flags(False)
 
+torch.backends.cudnn.benchmark = False
+
 
 # ============================================================
 # REPRODUCIBILITY
@@ -120,25 +192,49 @@ torch.backends.nnpack.set_flags(False)
 def configure_reproducibility(seed):
     """
     Seed Python, NumPy and PyTorch.
-
-    Exact deterministic CUDA execution is not enabled because some
-    segmentation operations do not provide deterministic implementations.
     """
-    random.seed(seed)
-    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(
+        seed
+    )
 
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    random.seed(
+        seed
+    )
+
+    np.random.seed(
+        seed
+    )
+
+    torch.manual_seed(
+        seed
+    )
+
+    torch.cuda.manual_seed_all(
+        seed
+    )
 
 
 def seed_worker(worker_id):
     """
     Seed every DataLoader worker.
     """
-    worker_seed = torch.initial_seed() % (2 ** 32)
+    worker_seed = (
+        torch.initial_seed()
+        % (2 ** 32)
+    )
 
-    random.seed(worker_seed)
-    np.random.seed(worker_seed)
+    random.seed(
+        worker_seed
+    )
+
+    np.random.seed(
+        worker_seed
+    )
+
+
+configure_reproducibility(
+    RANDOM_SEED
+)
 
 
 # ============================================================
@@ -148,6 +244,8 @@ def seed_worker(worker_id):
 def create_model():
     """
     Create the DeepLabV3+ ResNet-18 model.
+
+    The number of output channels depends on SEGMENTATION_MODE.
     """
     return smp.DeepLabV3Plus(
         encoder_name=ENCODER_NAME,
@@ -156,7 +254,7 @@ def create_model():
         decoder_channels=DECODER_CHANNELS,
         decoder_atrous_rates=DECODER_ATROUS_RATES,
         in_channels=3,
-        classes=NUM_CLASSES,
+        classes=NUM_OUTPUT_CHANNELS,
         activation=None,
         upsampling=UPSAMPLING_FACTOR,
     )
@@ -164,11 +262,12 @@ def create_model():
 
 def freeze_encoder_batch_norm_statistics(model):
     """
-    Freeze the running statistics of the encoder BatchNorm layers.
+    Freeze the running statistics of the pretrained encoder BatchNorm layers.
 
-    The affine parameters remain trainable.
+    BatchNorm affine parameters remain trainable.
     """
     for module in model.encoder.modules():
+
         if isinstance(
             module,
             torch.nn.modules.batchnorm._BatchNorm,
@@ -176,10 +275,27 @@ def freeze_encoder_batch_norm_statistics(model):
             module.eval()
 
 
+# ============================================================
+# SEGMENTATION HELPERS
+# ============================================================
+
 def prepare_mask(mask):
     """
-    Convert masks from [B, 1, H, W] to [B, H, W].
+    Prepare masks according to SEGMENTATION_MODE.
+
+    Binary mode:
+        preserve [B, 1, H, W] and convert the mask to float.
+
+    Multiclass mode:
+        convert [B, 1, H, W] to [B, H, W] and use integer class indices.
     """
+    if SEGMENTATION_MODE == "binary":
+
+        return mask.float().to(
+            DEVICE,
+            non_blocking=True,
+        )
+
     return torch.squeeze(
         mask,
         dim=1,
@@ -189,23 +305,161 @@ def prepare_mask(mask):
     )
 
 
-def validate_output_shape(logits, masks):
+def compute_loss(
+    logits,
+    mask,
+    bce_loss,
+    dice_loss,
+    cross_entropy_loss,
+):
     """
-    Verify that model output and masks have compatible spatial dimensions.
+    Compute the loss associated with the selected segmentation mode.
     """
-    expected_shape = (
-        masks.shape[0],
-        NUM_CLASSES,
-        masks.shape[1],
-        masks.shape[2],
+    if SEGMENTATION_MODE == "binary":
+
+        bce_value = bce_loss(
+            logits,
+            mask,
+        )
+
+        dice_value = dice_loss(
+            logits,
+            mask,
+        )
+
+        return (
+            bce_value
+            + dice_value
+        )
+
+    return cross_entropy_loss(
+        logits,
+        mask,
     )
+
+
+def get_predictions(logits):
+    """
+    Convert logits into the final segmentation prediction.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        probabilities = torch.sigmoid(
+            logits
+        )
+
+        return (
+            probabilities
+            >= BINARY_THRESHOLD
+        ).long()
+
+    return torch.argmax(
+        logits,
+        dim=1,
+    )
+
+
+def get_segmentation_stats(
+    predictions,
+    mask,
+):
+    """
+    Compute TP, FP, FN and TN independently for every image.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        return smp.metrics.get_stats(
+            predictions,
+            mask.long(),
+            mode="binary",
+        )
+
+    return smp.metrics.get_stats(
+        predictions,
+        mask,
+        mode="multiclass",
+        num_classes=NUM_OUTPUT_CHANNELS,
+    )
+
+
+def validate_output_shape(
+    logits,
+    mask,
+):
+    """
+    Verify that model output and target mask shapes are compatible.
+    """
+    if SEGMENTATION_MODE == "binary":
+
+        expected_shape = tuple(
+            mask.shape
+        )
+
+    else:
+
+        expected_shape = (
+            mask.shape[0],
+            NUM_OUTPUT_CHANNELS,
+            mask.shape[1],
+            mask.shape[2],
+        )
 
     if tuple(logits.shape) != expected_shape:
         raise RuntimeError(
             "Unexpected DeepLabV3+ output shape. "
             f"Received {tuple(logits.shape)}, "
-            f"expected {expected_shape}."
+            f"expected {expected_shape} for "
+            f"{SEGMENTATION_MODE} segmentation."
         )
+
+
+def compute_metrics(
+    tp,
+    fp,
+    fn,
+    tn,
+):
+    """
+    Compute IoU, Dice, precision and recall.
+    """
+    iou = smp.metrics.iou_score(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    dice = smp.metrics.f1_score(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    precision = smp.metrics.precision(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    recall = smp.metrics.recall(
+        tp,
+        fp,
+        fn,
+        tn,
+        reduction="none",
+    )
+
+    return (
+        iou,
+        dice,
+        precision,
+        recall,
+    )
 
 
 # ============================================================
@@ -213,8 +467,13 @@ def validate_output_shape(logits, masks):
 # ============================================================
 
 if len(sys.argv) > 1:
-    n_epochs = int(sys.argv[1])
+
+    n_epochs = int(
+        sys.argv[1]
+    )
+
 else:
+
     n_epochs = getattr(
         config_split,
         "DEFAULT_EPOCHS",
@@ -228,18 +487,17 @@ if n_epochs <= 0:
     )
 
 
-configure_reproducibility(
-    RANDOM_SEED
-)
-
-
 # ============================================================
 # HEMOSET TRANSFORMS
 # ============================================================
 
-train_transform = create_train_transform()
+train_transform = (
+    create_train_transform()
+)
 
-eval_transform = create_eval_transform()
+eval_transform = (
+    create_eval_transform()
+)
 
 
 # ============================================================
@@ -321,6 +579,18 @@ valid_hemo_DL = DataLoader(
 )
 
 
+if len(train_hemo_DL) == 0:
+    raise ValueError(
+        "The HemoSet training DataLoader is empty."
+    )
+
+
+if len(valid_hemo_DL) == 0:
+    raise ValueError(
+        "The HemoSet validation DataLoader is empty."
+    )
+
+
 # ============================================================
 # DATA SHAPE CHECK
 # ============================================================
@@ -331,11 +601,13 @@ feature_batch, label_batch = next(
 
 
 print(
-    f"Feature batch shape: {feature_batch.size()}"
+    f"Feature batch shape: "
+    f"{feature_batch.size()}"
 )
 
 print(
-    f"Labels batch shape: {label_batch.size()}"
+    f"Labels batch shape: "
+    f"{label_batch.size()}"
 )
 
 
@@ -343,60 +615,75 @@ print(
 # MODEL
 # ============================================================
 
-deeplabv3plus = create_model()
-
-deeplabv3plus.to(
+deeplabv3plus = create_model().to(
     DEVICE
-)
-
-
-print(
-    f"Model: {MODEL_NAME}"
-)
-
-print(
-    f"Encoder: {ENCODER_NAME}"
 )
 
 
 # Test one batch before starting the complete training.
 with torch.inference_mode():
 
-    feature_batch = feature_batch.to(
+    shape_check_images = feature_batch.to(
         DEVICE
     )
 
-    label_batch = prepare_mask(
+    shape_check_masks = prepare_mask(
         label_batch
     )
 
-    output_batch = deeplabv3plus(
-        feature_batch
+    shape_check_logits = deeplabv3plus(
+        shape_check_images
     )
 
     validate_output_shape(
-        output_batch,
-        label_batch,
+        shape_check_logits,
+        shape_check_masks,
     )
 
 
 print(
-    f"Model output shape: {output_batch.shape}"
+    f"Model output shape: "
+    f"{tuple(shape_check_logits.shape)}"
 )
 
 
 del feature_batch
 del label_batch
-del output_batch
+del shape_check_images
+del shape_check_masks
+del shape_check_logits
 
 
 # ============================================================
-# LOSS
+# LOSS FUNCTIONS
 # ============================================================
 
-loss_function = torch.nn.CrossEntropyLoss().to(
-    DEVICE
-)
+if SEGMENTATION_MODE == "binary":
+
+    bce_loss = (
+        torch.nn.BCEWithLogitsLoss()
+        .to(DEVICE)
+    )
+
+    dice_loss = (
+        smp.losses.DiceLoss(
+            mode="binary",
+            from_logits=True,
+        )
+        .to(DEVICE)
+    )
+
+    cross_entropy_loss = None
+
+else:
+
+    bce_loss = None
+    dice_loss = None
+
+    cross_entropy_loss = (
+        torch.nn.CrossEntropyLoss()
+        .to(DEVICE)
+    )
 
 
 # ============================================================
@@ -406,15 +693,23 @@ loss_function = torch.nn.CrossEntropyLoss().to(
 optimizer = torch.optim.AdamW(
     [
         {
-            "params": deeplabv3plus.encoder.parameters(),
+            "params": (
+                deeplabv3plus.encoder.parameters()
+            ),
             "lr": ENCODER_LEARNING_RATE,
         },
         {
-            "params": deeplabv3plus.decoder.parameters(),
+            "params": (
+                deeplabv3plus.decoder.parameters()
+            ),
             "lr": DECODER_LEARNING_RATE,
         },
         {
-            "params": deeplabv3plus.segmentation_head.parameters(),
+            "params": (
+                deeplabv3plus
+                .segmentation_head
+                .parameters()
+            ),
             "lr": DECODER_LEARNING_RATE,
         },
     ],
@@ -451,8 +746,8 @@ os.makedirs(
 checkpoint_path = os.path.join(
     config_split.MODEL_PRETRAINED_DIR,
     (
-        "deeplabv3plus_multiclass_"
-        "best_resnet18_hemo.pth"
+        f"deeplabv3plus_{SEGMENTATION_MODE}_"
+        f"best_{ENCODER_NAME}_hemo.pth"
     ),
 )
 
@@ -462,79 +757,118 @@ checkpoint_path = os.path.join(
 # ============================================================
 
 print(
-    "\n======== HEMOSET DEEPLABV3+ TRAINING CONFIGURATION ========"
+    "\n======== HEMOSET DEEPLABV3+ "
+    "TRAINING CONFIGURATION ========"
 )
 
 print(
-    f"Training CSV: {config_split.CSV_TRAIN_PATH}"
+    f"Training CSV: "
+    f"{config_split.CSV_TRAIN_PATH}"
 )
 
 print(
-    f"Validation CSV: {config_split.CSV_VALID_PATH}"
+    f"Validation CSV: "
+    f"{config_split.CSV_VALID_PATH}"
 )
 
 print(
-    f"Training samples: {len(train_ds)}"
+    f"Training samples: "
+    f"{len(train_ds)}"
 )
 
 print(
-    f"Validation samples: {len(valid_ds)}"
+    f"Validation samples: "
+    f"{len(valid_ds)}"
 )
 
 print(
-    f"Training batches: {len(train_hemo_DL)}"
+    f"Training batches: "
+    f"{len(train_hemo_DL)}"
 )
 
 print(
-    f"Validation batches: {len(valid_hemo_DL)}"
+    f"Validation batches: "
+    f"{len(valid_hemo_DL)}"
 )
 
 print(
-    f"Model: {MODEL_NAME}"
+    f"Model: "
+    f"{MODEL_NAME}"
 )
 
 print(
-    f"Encoder: {ENCODER_NAME}"
+    f"Encoder: "
+    f"{ENCODER_NAME}"
 )
 
 print(
-    f"Encoder output stride: {ENCODER_OUTPUT_STRIDE}"
+    f"Encoder output stride: "
+    f"{ENCODER_OUTPUT_STRIDE}"
 )
 
 print(
-    f"Decoder channels: {DECODER_CHANNELS}"
+    f"Decoder channels: "
+    f"{DECODER_CHANNELS}"
 )
 
 print(
-    f"Decoder atrous rates: {DECODER_ATROUS_RATES}"
+    f"Decoder atrous rates: "
+    f"{DECODER_ATROUS_RATES}"
 )
 
 print(
-    f"Segmentation mode: {SEGMENTATION_MODE}"
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
 )
 
 print(
-    f"Number of classes: {NUM_CLASSES}"
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+
+if SEGMENTATION_MODE == "binary":
+
+    print(
+        "Training loss: "
+        "BCEWithLogitsLoss + DiceLoss"
+    )
+
+    print(
+        f"Binary threshold: "
+        f"{BINARY_THRESHOLD:.2f}"
+    )
+
+else:
+
+    print(
+        "Training loss: CrossEntropyLoss"
+    )
+
+
+print(
+    f"Epochs: "
+    f"{n_epochs}"
 )
 
 print(
-    f"Epochs: {n_epochs}"
+    f"Batch size: "
+    f"{BATCH_SIZE}"
 )
 
 print(
-    f"Batch size: {BATCH_SIZE}"
+    f"Encoder learning rate: "
+    f"{ENCODER_LEARNING_RATE}"
 )
 
 print(
-    f"Encoder learning rate: {ENCODER_LEARNING_RATE}"
+    f"Decoder learning rate: "
+    f"{DECODER_LEARNING_RATE}"
 )
 
 print(
-    f"Decoder learning rate: {DECODER_LEARNING_RATE}"
-)
-
-print(
-    f"Checkpoint: {checkpoint_path}"
+    f"Checkpoint: "
+    f"{checkpoint_path}"
 )
 
 
@@ -542,7 +876,17 @@ print(
 # TRAINING STATE
 # ============================================================
 
-best_selection_score = float("-inf")
+best_selection_score = float(
+    "-inf"
+)
+
+best_global_dice = float(
+    "-inf"
+)
+
+best_mean_image_dice = float(
+    "-inf"
+)
 
 best_epoch = 0
 
@@ -567,10 +911,11 @@ for epoch in range(n_epochs):
 
     deeplabv3plus.train()
 
-    # Keep the pretrained encoder BatchNorm statistics fixed.
+    # Keep pretrained encoder BatchNorm statistics fixed.
     freeze_encoder_batch_norm_statistics(
         deeplabv3plus
     )
+
 
     train_loss_sum = 0.0
     train_sample_count = 0
@@ -597,20 +942,28 @@ for epoch in range(n_epochs):
             train_masks
         )
 
+
         logits = deeplabv3plus(
             train_images
         )
 
+
         if batch_index == 0:
+
             validate_output_shape(
                 logits,
                 train_masks,
             )
 
-        loss_train_value = loss_function(
-            logits,
-            train_masks,
+
+        loss_train_value = compute_loss(
+            logits=logits,
+            mask=train_masks,
+            bce_loss=bce_loss,
+            dice_loss=dice_loss,
+            cross_entropy_loss=cross_entropy_loss,
         )
+
 
         if not torch.isfinite(
             loss_train_value
@@ -620,6 +973,7 @@ for epoch in range(n_epochs):
                 f"at batch {batch_index}: "
                 f"{loss_train_value.item()}"
             )
+
 
         loss_train_value.backward()
 
@@ -635,30 +989,36 @@ for epoch in range(n_epochs):
         optimizer.step()
 
 
-        current_batch_size = train_images.size(
-            0
+        current_batch_size = (
+            train_images.size(0)
         )
+
 
         train_loss_sum += (
             loss_train_value.item()
             * current_batch_size
         )
 
+
         train_sample_count += (
             current_batch_size
         )
 
+
         gradient_norm_sum += float(
-            gradient_norm
+            gradient_norm.detach().cpu()
         )
+
 
         optimizer_step_count += 1
 
 
         if batch_index % 50 == 0:
+
             print(
-                f"loss_train "
-                f"{loss_train_value.item():.6f}"
+                f"train batch "
+                f"{batch_index}/{len(train_hemo_DL)} "
+                f"loss {loss_train_value.item():.6f}"
             )
 
 
@@ -683,19 +1043,12 @@ for epoch in range(n_epochs):
 
     val_loss_sum = 0.0
     val_sample_count = 0
-    val_image_count = 0
 
 
-    global_true_positive = 0.0
-    global_false_positive = 0.0
-    global_false_negative = 0.0
-
-
-    per_image_iou_sum = 0.0
-    per_image_iou_squared_sum = 0.0
-
-    per_image_dice_sum = 0.0
-    per_image_dice_squared_sum = 0.0
+    tp_batches = []
+    fp_batches = []
+    fn_batches = []
+    tn_batches = []
 
 
     with torch.inference_mode():
@@ -714,20 +1067,28 @@ for epoch in range(n_epochs):
                 validation_masks
             )
 
+
             logits = deeplabv3plus(
                 validation_images
             )
 
+
             if batch_index == 0:
+
                 validate_output_shape(
                     logits,
                     validation_masks,
                 )
 
-            loss_valid_value = loss_function(
-                logits,
-                validation_masks,
+
+            loss_valid_value = compute_loss(
+                logits=logits,
+                mask=validation_masks,
+                bce_loss=bce_loss,
+                dice_loss=dice_loss,
+                cross_entropy_loss=cross_entropy_loss,
             )
+
 
             if not torch.isfinite(
                 loss_valid_value
@@ -739,121 +1100,36 @@ for epoch in range(n_epochs):
                 )
 
 
-            if batch_index % 50 == 0:
-                print(
-                    f"loss_valid "
-                    f"{loss_valid_value.item():.6f}"
-                )
-
-
-            predictions = torch.argmax(
-                logits,
-                dim=1,
+            predictions = get_predictions(
+                logits
             )
 
 
-            predicted_blood = (
-                predictions
-                == BLOOD_CLASS_INDEX
-            )
-
-            target_blood = (
-                validation_masks
-                == BLOOD_CLASS_INDEX
-            )
-
-
-            true_positive = (
-                predicted_blood
-                & target_blood
-            ).sum(
-                dim=(1, 2)
-            ).double()
-
-
-            false_positive = (
-                predicted_blood
-                & ~target_blood
-            ).sum(
-                dim=(1, 2)
-            ).double()
-
-
-            false_negative = (
-                ~predicted_blood
-                & target_blood
-            ).sum(
-                dim=(1, 2)
-            ).double()
-
-
-            global_true_positive += float(
-                true_positive.sum().item()
-            )
-
-            global_false_positive += float(
-                false_positive.sum().item()
-            )
-
-            global_false_negative += float(
-                false_negative.sum().item()
+            (
+                batch_tp,
+                batch_fp,
+                batch_fn,
+                batch_tn,
+            ) = get_segmentation_stats(
+                predictions,
+                validation_masks,
             )
 
 
-            iou_denominator = (
-                true_positive
-                + false_positive
-                + false_negative
+            tp_batches.append(
+                batch_tp.cpu()
             )
 
-
-            per_image_iou = torch.where(
-                iou_denominator > 0,
-                true_positive
-                / iou_denominator,
-                torch.ones_like(
-                    iou_denominator
-                ),
+            fp_batches.append(
+                batch_fp.cpu()
             )
 
-
-            dice_denominator = (
-                2.0 * true_positive
-                + false_positive
-                + false_negative
+            fn_batches.append(
+                batch_fn.cpu()
             )
 
-
-            per_image_dice = torch.where(
-                dice_denominator > 0,
-                2.0
-                * true_positive
-                / dice_denominator,
-                torch.ones_like(
-                    dice_denominator
-                ),
-            )
-
-
-            per_image_iou_sum += float(
-                per_image_iou.sum().item()
-            )
-
-            per_image_iou_squared_sum += float(
-                (
-                    per_image_iou ** 2
-                ).sum().item()
-            )
-
-
-            per_image_dice_sum += float(
-                per_image_dice.sum().item()
-            )
-
-            per_image_dice_squared_sum += float(
-                (
-                    per_image_dice ** 2
-                ).sum().item()
+            tn_batches.append(
+                batch_tn.cpu()
             )
 
 
@@ -867,18 +1143,20 @@ for epoch in range(n_epochs):
                 * current_batch_size
             )
 
+
             val_sample_count += (
                 current_batch_size
             )
 
-            val_image_count += (
-                current_batch_size
-            )
 
+            if batch_index % 50 == 0:
 
-    # ========================================================
-    # VALIDATION METRICS
-    # ========================================================
+                print(
+                    f"validation batch "
+                    f"{batch_index}/{len(valid_hemo_DL)} "
+                    f"loss {loss_valid_value.item():.6f}"
+                )
+
 
     avg_val_loss = (
         val_loss_sum
@@ -886,89 +1164,180 @@ for epoch in range(n_epochs):
     )
 
 
-    global_iou = (
-        global_true_positive
-        / (
-            global_true_positive
-            + global_false_positive
-            + global_false_negative
-            + EPSILON
-        )
+    val_tp = torch.cat(
+        tp_batches,
+        dim=0,
+    )
+
+    val_fp = torch.cat(
+        fp_batches,
+        dim=0,
+    )
+
+    val_fn = torch.cat(
+        fn_batches,
+        dim=0,
+    )
+
+    val_tn = torch.cat(
+        tn_batches,
+        dim=0,
     )
 
 
-    global_dice = (
-        2.0
-        * global_true_positive
-        / (
-            2.0 * global_true_positive
-            + global_false_positive
-            + global_false_negative
-            + EPSILON
-        )
+    # ========================================================
+    # PER-IMAGE VALIDATION METRICS
+    # ========================================================
+
+    (
+        per_image_iou_classes,
+        per_image_dice_classes,
+        per_image_precision_classes,
+        per_image_recall_classes,
+    ) = compute_metrics(
+        val_tp,
+        val_fp,
+        val_fn,
+        val_tn,
     )
 
 
-    global_precision = (
-        global_true_positive
-        / (
-            global_true_positive
-            + global_false_positive
-            + EPSILON
-        )
+    blood_iou_per_image = per_image_iou_classes[
+        :,
+        BLOOD_CLASS_INDEX,
+    ]
+
+
+    blood_dice_per_image = per_image_dice_classes[
+        :,
+        BLOOD_CLASS_INDEX,
+    ]
+
+
+    blood_precision_per_image = (
+        per_image_precision_classes[
+            :,
+            BLOOD_CLASS_INDEX,
+        ]
     )
 
 
-    global_recall = (
-        global_true_positive
-        / (
-            global_true_positive
-            + global_false_negative
-            + EPSILON
-        )
+    blood_recall_per_image = (
+        per_image_recall_classes[
+            :,
+            BLOOD_CLASS_INDEX,
+        ]
     )
 
 
     mean_image_iou = (
-        per_image_iou_sum
-        / val_image_count
-    )
-
-
-    mean_image_dice = (
-        per_image_dice_sum
-        / val_image_count
-    )
-
-
-    image_iou_variance = max(
-        0.0,
-        (
-            per_image_iou_squared_sum
-            / val_image_count
-        )
-        - mean_image_iou ** 2,
-    )
-
-
-    image_dice_variance = max(
-        0.0,
-        (
-            per_image_dice_squared_sum
-            / val_image_count
-        )
-        - mean_image_dice ** 2,
+        blood_iou_per_image
+        .mean()
+        .item()
     )
 
 
     std_image_iou = (
-        image_iou_variance ** 0.5
+        blood_iou_per_image
+        .std(correction=0)
+        .item()
+    )
+
+
+    mean_image_dice = (
+        blood_dice_per_image
+        .mean()
+        .item()
     )
 
 
     std_image_dice = (
-        image_dice_variance ** 0.5
+        blood_dice_per_image
+        .std(correction=0)
+        .item()
     )
+
+
+    mean_image_precision = (
+        blood_precision_per_image
+        .mean()
+        .item()
+    )
+
+
+    std_image_precision = (
+        blood_precision_per_image
+        .std(correction=0)
+        .item()
+    )
+
+
+    mean_image_recall = (
+        blood_recall_per_image
+        .mean()
+        .item()
+    )
+
+
+    std_image_recall = (
+        blood_recall_per_image
+        .std(correction=0)
+        .item()
+    )
+
+
+    # ========================================================
+    # DATASET-LEVEL VALIDATION METRICS
+    # ========================================================
+
+    global_tp = val_tp.sum(
+        dim=0
+    )
+
+    global_fp = val_fp.sum(
+        dim=0
+    )
+
+    global_fn = val_fn.sum(
+        dim=0
+    )
+
+    global_tn = val_tn.sum(
+        dim=0
+    )
+
+
+    (
+        global_iou_classes,
+        global_dice_classes,
+        global_precision_classes,
+        global_recall_classes,
+    ) = compute_metrics(
+        global_tp,
+        global_fp,
+        global_fn,
+        global_tn,
+    )
+
+
+    global_iou = global_iou_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
+
+
+    global_dice = global_dice_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
+
+
+    global_precision = global_precision_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
+
+
+    global_recall = global_recall_classes[
+        BLOOD_CLASS_INDEX
+    ].item()
 
 
     selection_score = (
@@ -980,22 +1349,12 @@ for epoch in range(n_epochs):
     )
 
 
-    # ========================================================
-    # SCHEDULER
-    # ========================================================
-
-    scheduler.step(
+    if not np.isfinite(
         selection_score
-    )
-
-
-    encoder_current_lr = (
-        optimizer.param_groups[0]["lr"]
-    )
-
-    decoder_current_lr = (
-        optimizer.param_groups[1]["lr"]
-    )
+    ):
+        raise FloatingPointError(
+            "Non-finite validation selection score detected."
+        )
 
 
     # ========================================================
@@ -1014,6 +1373,14 @@ for epoch in range(n_epochs):
 
         best_selection_score = (
             selection_score
+        )
+
+        best_global_dice = (
+            global_dice
+        )
+
+        best_mean_image_dice = (
+            mean_image_dice
         )
 
         best_epoch = epoch + 1
@@ -1049,6 +1416,24 @@ for epoch in range(n_epochs):
 
 
     # ========================================================
+    # SCHEDULER
+    # ========================================================
+
+    scheduler.step(
+        selection_score
+    )
+
+
+    encoder_current_lr = (
+        optimizer.param_groups[0]["lr"]
+    )
+
+    decoder_current_lr = (
+        optimizer.param_groups[1]["lr"]
+    )
+
+
+    # ========================================================
     # EPOCH SUMMARY
     # ========================================================
 
@@ -1058,66 +1443,87 @@ for epoch in range(n_epochs):
     )
 
     print(
-        f"avg_train_loss {avg_train_loss:.6f}"
+        f"avg_train_loss: "
+        f"{avg_train_loss:.6f}"
     )
 
     print(
-        f"avg_gradient_norm {avg_gradient_norm:.6f}"
+        f"avg_gradient_norm: "
+        f"{avg_gradient_norm:.6f}"
     )
 
     print(
-        f"avg_val_loss {avg_val_loss:.6f}"
+        f"avg_val_loss: "
+        f"{avg_val_loss:.6f}"
     )
 
     print(
-        f"global_iou {global_iou:.6f}"
+        f"global_iou: "
+        f"{global_iou:.6f}"
     )
 
     print(
-        f"global_dice {global_dice:.6f}"
+        f"global_dice: "
+        f"{global_dice:.6f}"
     )
 
     print(
-        f"global_precision {global_precision:.6f}"
+        f"global_precision: "
+        f"{global_precision:.6f}"
     )
 
     print(
-        f"global_recall {global_recall:.6f}"
+        f"global_recall: "
+        f"{global_recall:.6f}"
     )
 
     print(
-        f"mean_image_iou "
+        f"mean_image_iou: "
         f"{mean_image_iou:.6f} "
         f"+/- {std_image_iou:.6f}"
     )
 
     print(
-        f"mean_image_dice "
+        f"mean_image_dice: "
         f"{mean_image_dice:.6f} "
         f"+/- {std_image_dice:.6f}"
     )
 
     print(
-        f"selection_score {selection_score:.6f}"
+        f"mean_image_precision: "
+        f"{mean_image_precision:.6f} "
+        f"+/- {std_image_precision:.6f}"
     )
 
     print(
-        f"encoder_learning_rate "
+        f"mean_image_recall: "
+        f"{mean_image_recall:.6f} "
+        f"+/- {std_image_recall:.6f}"
+    )
+
+    print(
+        f"selection_score: "
+        f"{selection_score:.6f}"
+    )
+
+    print(
+        f"encoder_learning_rate: "
         f"{encoder_current_lr:.8f}"
     )
 
     print(
-        f"decoder_learning_rate "
+        f"decoder_learning_rate: "
         f"{decoder_current_lr:.8f}"
     )
 
     print(
-        f"best_selection_score "
+        f"best_selection_score: "
         f"{best_selection_score:.6f}"
     )
 
     print(
-        f"best_epoch {best_epoch}"
+        f"best_epoch: "
+        f"{best_epoch}"
     )
 
 
@@ -1129,6 +1535,7 @@ for epoch in range(n_epochs):
         epochs_without_improvement
         >= EARLY_STOPPING_PATIENCE
     ):
+
         print(
             "\nEarly stopping activated."
         )
@@ -1141,11 +1548,33 @@ for epoch in range(n_epochs):
 # ============================================================
 
 print(
-    "\n======== TRAINING COMPLETED ========"
+    "\n======== HEMOSET DEEPLABV3+ "
+    "TRAINING COMPLETED ========"
 )
 
 print(
-    f"Best epoch: {best_epoch}"
+    f"Model: "
+    f"{MODEL_NAME}"
+)
+
+print(
+    f"Encoder: "
+    f"{ENCODER_NAME}"
+)
+
+print(
+    f"Segmentation mode: "
+    f"{SEGMENTATION_MODE}"
+)
+
+print(
+    f"Output channels: "
+    f"{NUM_OUTPUT_CHANNELS}"
+)
+
+print(
+    f"Best epoch: "
+    f"{best_epoch}"
 )
 
 print(
@@ -1154,5 +1583,16 @@ print(
 )
 
 print(
-    f"Best checkpoint: {checkpoint_path}"
+    f"Best global validation Dice: "
+    f"{best_global_dice:.6f}"
+)
+
+print(
+    f"Best mean-image validation Dice: "
+    f"{best_mean_image_dice:.6f}"
+)
+
+print(
+    f"Best checkpoint: "
+    f"{checkpoint_path}"
 )

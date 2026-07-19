@@ -44,6 +44,11 @@ PIG9    = "pig9"
 PIG10   = "pig10" 
 PIG11   = "pig11"
 
+# TRAIN_VIDEO_ID = [PIG1, PIG2, PIG3, PIG4, PIG5, PIG6, PIG7]
+# VAL_VIDEO_ID =   [PIG9]
+# TEST_VIDEO_ID =  [PIG10, PIG11]
+
+#SPLIT OF BASELINE
 TRAIN_VIDEO_ID = [PIG1, PIG2, PIG9, PIG10]
 VAL_VIDEO_ID =   [PIG5, PIG7]
 TEST_VIDEO_ID =  [PIG3, PIG6, PIG11]
@@ -57,9 +62,9 @@ MODEL_PRETRAINED_DIR = os.path.join(
 )
 
 # EVALUATION MODEL PARAM FOR HEMOSET,, USED ALSO FOR ZERO SHOT ON RABBANI SET TEST (encoder = resnet18)
-MODEL_TO_EVALUATE = "unet_plus_plus" # "unet_plus_plus" or "unet"
-ENCODER_NAME = "resnet34"
+MODEL_TO_EVALUATE = "unet" # "unet_plus_plus" or "unet"
+ENCODER_NAME = "resnet18"
 
 # EVALUATION MODEL PARAM FOR RABBANI, USED ALSO FOR ZERO SHOT ON HEMOSET SET TEST
-RABBANI_EVALUATION_MODEL = "deeplabv3plus" # "deeplabv3plus" or "unet" 
+RABBANI_EVALUATION_MODEL = "unet" # "deeplabv3plus" or "unet" 
 # The encoder is always a resnet18
