@@ -4,17 +4,9 @@ file: evaluate_hemoset_on_rabbani.py
 brief:
     Perform binary zero-shot evaluation on the Rabbani test split using one
     model trained on HemoSet.
+    Select the architecture in src/config_split.py with: RABBANI_EVALUATION_MODEL = "unet_plus_plus"
+    or: RABBANI_EVALUATION_MODEL = "deeplabv3plus"
 
-    Select the architecture in src/config_split.py with:
-
-        RABBANI_EVALUATION_MODEL = "unet_plus_plus"
-
-    or:
-
-        RABBANI_EVALUATION_MODEL = "deeplabv3plus"
-
-usage:
-    python -u -m scripts.rabbani.evaluate_hemoset_on_rabbani
 """
 
 import os
@@ -28,9 +20,9 @@ from src.data_transforms import create_bleed_eval_transform
 from src.hemoset_dataset_v2 import CustomImageDataset
 
 
-# ============================================================
+
 # CONFIGURATION
-# ============================================================
+
 
 MODEL_NAME = config_split.RABBANI_EVALUATION_MODEL.strip().lower()
 SUPPORTED_MODELS = {"unet_plus_plus", "deeplabv3plus"}
@@ -59,9 +51,9 @@ DECODER_ATROUS_RATES = (12, 24, 36)
 UPSAMPLING_FACTOR = 4
 
 
-# ============================================================
+
 # HARDWARE
-# ============================================================
+
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA is not available.")
@@ -71,9 +63,9 @@ torch.backends.cudnn.enabled = False
 torch.backends.nnpack.set_flags(False)
 
 
-# ============================================================
+
 # MODEL
-# ============================================================
+
 
 def create_model_and_checkpoint():
     """Create the selected model and return its checkpoint path."""
@@ -149,9 +141,9 @@ def load_checkpoint(model, checkpoint_path):
     model.eval()
 
 
-# ============================================================
+
 # HELPERS
-# ============================================================
+
 
 def prepare_mask(mask):
     """Convert masks encoded as 0/1 or 0/255 to binary float masks."""
@@ -186,9 +178,9 @@ def compute_metrics(tp, fp, fn, tn):
     )
 
 
-# ============================================================
+
 # DATASET
-# ============================================================
+
 
 eval_transform = create_bleed_eval_transform()
 
@@ -211,9 +203,9 @@ test_loader = DataLoader(
 )
 
 
-# ============================================================
+
 # MODEL AND CHECKPOINT
-# ============================================================
+
 
 model, model_display_name, checkpoint_path = (
     create_model_and_checkpoint()
@@ -222,18 +214,16 @@ model, model_display_name, checkpoint_path = (
 load_checkpoint(model, checkpoint_path)
 
 
-# ============================================================
+
 # SUMMARY
-# ============================================================
+
 
 print("======== HEMOSET TO RABBANI ZERO-SHOT EVALUATION ========", flush=True)
 print(f"Model: {model_display_name}", flush=True)
 print(f"Configuration value: {MODEL_NAME}", flush=True)
 print(f"Encoder: {ENCODER_NAME}", flush=True)
 print("Segmentation mode: binary", flush=True)
-print("Output channels: 1", flush=True)
 print("Training loss: BCEWithLogitsLoss + DiceLoss", flush=True)
-print(f"Binary threshold: {BINARY_THRESHOLD:.2f}", flush=True)
 print("Training dataset: HemoSet", flush=True)
 print("Evaluation dataset: Rabbani test split", flush=True)
 print(f"Checkpoint: {checkpoint_path}", flush=True)
@@ -247,9 +237,9 @@ print(f"Test images: {len(test_dataset)}", flush=True)
 print(f"Test batches: {len(test_loader)}", flush=True)
 
 
-# ============================================================
+
 # INFERENCE
-# ============================================================
+
 
 tp_batches = []
 fp_batches = []
@@ -303,9 +293,9 @@ fn = torch.cat(fn_batches, dim=0)
 tn = torch.cat(tn_batches, dim=0)
 
 
-# ============================================================
+
 # PER-IMAGE METRICS
-# ============================================================
+
 
 image_iou_classes, image_dice_classes, image_precision_classes, image_recall_classes = (
     compute_metrics(tp, fp, fn, tn)
@@ -329,9 +319,9 @@ mean_recall = image_recall.mean().item()
 std_recall = image_recall.std(unbiased=False).item()
 
 
-# ============================================================
+
 # DATASET-LEVEL METRICS
-# ============================================================
+
 
 global_tp = tp.sum(dim=0)
 global_fp = fp.sum(dim=0)
@@ -348,9 +338,9 @@ global_precision = global_precision_classes[BLOOD_CLASS_INDEX].item()
 global_recall = global_recall_classes[BLOOD_CLASS_INDEX].item()
 
 
-# ============================================================
+
 # EMPTY IMAGE STATISTICS
-# ============================================================
+
 
 blood_gt_pixels = (
     tp[:, BLOOD_CLASS_INDEX] + fn[:, BLOOD_CLASS_INDEX]
@@ -372,39 +362,19 @@ empty_false_positives = (
 ).sum().item()
 
 
-# ============================================================
+
 # RESULTS
-# ============================================================
+
 
 print("\n======== ZERO-SHOT RESULTS ========", flush=True)
 print(f"Model: {model_display_name}", flush=True)
 print(f"Checkpoint: {checkpoint_path}", flush=True)
 print(f"Test images: {len(test_dataset)}", flush=True)
 
-print("\n----- Test image composition -----", flush=True)
-print(f"Images with blood: {images_with_blood}", flush=True)
-print(f"Images without blood: {empty_images}", flush=True)
-print(
-    f"Correctly predicted as empty: {correct_empty_predictions}",
-    flush=True,
-)
-print(
-    "Empty images with false-positive blood: "
-    f"{empty_false_positives}",
-    flush=True,
-)
-
 print("\n----- Dataset-level blood metrics -----", flush=True)
 print(f"IoU:       {global_iou:.4f}", flush=True)
 print(f"Dice:      {global_dice:.4f}", flush=True)
-print(f"Precision: {global_precision:.4f}", flush=True)
-print(f"Recall:    {global_recall:.4f}", flush=True)
 
 print("\n----- Per-image blood metrics -----", flush=True)
 print(f"IoU:       {mean_iou:.4f} +/- {std_iou:.4f}", flush=True)
 print(f"Dice:      {mean_dice:.4f} +/- {std_dice:.4f}", flush=True)
-print(
-    f"Precision: {mean_precision:.4f} +/- {std_precision:.4f}",
-    flush=True,
-)
-print(f"Recall:    {mean_recall:.4f} +/- {std_recall:.4f}", flush=True)

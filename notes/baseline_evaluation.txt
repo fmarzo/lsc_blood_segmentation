@@ -445,17 +445,22 @@ Recall:    0.7842 +/- 0.1698
 --------------------------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------
 
-|UNET++ RESNET18 BINARY ON RABBANI| da fare SOLO BINARY
-SBATCHATO
+|UNET++ RESNET18 BINARY ON RABBANI| 
 
 ======== RABBANI MODEL EVALUATION ========
-Model: unet
+Model: unet_plus_plus
 Encoder: resnet18
-Segmentation mode: multiclass
-Number of classes: 2
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
+Segmentation mode: binary
+Output channels: 1
+Training loss: BCEWithLogitsLoss + DiceLoss
+Binary threshold: 0.50
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_dice_bleed_seg_resnet18_rab.pth
 Test CSV: /homes/fgiusti/cvcs2026/lsc_blood_segmentation/lab/splits_v1p0/test.csv
 Test images: 101
+Test batches: 26
+Input batch shape: (4, 3, 480, 864)
+Output batch shape: (4, 1, 480, 864)
+Mask batch shape: (4, 1, 480, 864)
 Evaluated batch 0/26
 
 ----- Test image composition -----
@@ -473,24 +478,26 @@ bleeding_segmentation_v1p0    101
 Name: count, dtype: int64
 
 ======== RABBANI TEST RESULTS ========
-Model: unet
+Model: unet_plus_plus
 Encoder: resnet18
-Segmentation mode: multiclass
-Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_multiclass_best_dice_bleed_seg_resnet18.pth
+Segmentation mode: binary
+Output channels: 1
+Training loss: BCEWithLogitsLoss + DiceLoss
+Binary threshold: 0.50
+Checkpoint: /work/cvcs2026/latent_space_cowboys/model_pretrained/unet_plus_plus_binary_best_dice_bleed_seg_resnet18_rab.pth
 Test images: 101
 
 ----- Dataset-level blood metrics -----
-IoU:       0.5265
-Dice:      0.6898
-Precision: 0.5858
-Recall:    0.8388
+IoU:       0.5633
+Dice:      0.7207
+Precision: 0.7198
+Recall:    0.7216
 
 ----- Per-image blood metrics -----
-IoU:       0.5132 +/- 0.2168
-Dice:      0.6475 +/- 0.2189
-Precision: 0.6097 +/- 0.2304
-Recall:    0.8112 +/- 0.2110
-
+IoU:       0.5210 +/- 0.2524
+Dice:      0.6423 +/- 0.2629
+Precision: 0.7659 +/- 0.2028
+Recall:    0.6732 +/- 0.3053
 --------------------------------------------------------------------------------------------------------------------
 
 |DEEPLABV3PLUS RESNET18 BINARY ON RABBANI| 
