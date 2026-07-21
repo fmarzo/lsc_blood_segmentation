@@ -228,6 +228,30 @@ We decided to measure these values only for U-Net++, as it was the best-performi
 
 |UNET++ TRAINED ON HEMOSET TRAIN/VAL SET CONFIGURATIONS AND TESTED ON RABBANI TEST SET CONFIGURATIONS|
 
+global_iou
+values [0.20217961072921753, 0.16373389959335327, 0.22085100412368774, 0.17397427558898926, 0.3157927393913269]
+mean 0.2153
+sample_variance 0.003667
+sample_standard_deviation 0.0606
+
+global_dice
+values [0.3363550901412964, 0.28139403462409973, 0.3617984652519226, 0.29638513922691345, 0.4800037443637848]
+mean 0.3512
+sample_variance 0.006200
+sample_standard_deviation 0.0787
+
+image_iou_mean
+values [0.08851756900548935, 0.10279476642608643, 0.12613853812217712, 0.07876260578632355, 0.17246514558792114]
+mean 0.1137
+sample_variance 0.001395
+sample_standard_deviation 0.0374
+
+image_dice_mean
+values [0.13010519742965698, 0.15102320909500122, 0.1824750304222107, 0.11380193382501602, 0.24240128695964813]
+mean 0.1640
+sample_variance 0.002581
+sample_standard_deviation 0.0508
+
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 |UNET++ TRAINED ON RABBANI TRAIN/VAL SET CONFIGURATIONS AND TESTED ON HEMOSET TEST SET CONFIGURATIONS|
@@ -236,9 +260,31 @@ We decided to measure these values only for U-Net++, as it was the best-performi
 
 |UNET++ TRAINED ON ALL DATA OF HEMOSET AND TESTED ON ALL DATA OF RABBANI|
 
+best_epoch 11
+best_validation_loss 0.35166440968369617
+global_iou 0.17202360928058624
+global_dice 0.2935497462749481
+global_precision 0.2957650423049927
+global_recall 0.29136738181114197
+image_iou 0.11327340453863144 +/- 0.1892884224653244
+image_dice 0.1617688685655594 +/- 0.24789142608642578
+image_precision 0.4315856397151947 +/- 0.4409812390804291
+image_recall 0.16328687965869904 +/- 0.2454882264137268
+
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 |UNET++ TRAINED ON ALL DATA OF RABBANI AND TESTED ON ALL DATA OF HEMOSET|
+
+best_epoch 28
+best_validation_loss 0.31608441589694275
+global_iou 0.3886958658695221
+global_dice 0.55979984998703
+global_precision 0.39609965682029724
+global_recall 0.9541179537773132
+image_iou 0.35758498311042786 +/- 0.15062324702739716
+image_dice 0.5080626606941223 +/- 0.17079110443592072
+image_precision 0.37346652150154114 +/- 0.15825806558132172
+image_recall 0.9038125276565552 +/- 0.16341683268547058
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 

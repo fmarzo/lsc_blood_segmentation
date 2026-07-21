@@ -210,6 +210,58 @@
             "justMyCode": true
         },
         {
+            "name": "Python Debugger for All Config Zero-Shot: Train Unet++ on All Hemoset and tested on all Rabbani",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.zero_shot.unet_plus_plus_full_hemoset_to_full_rabbani",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //num epochs
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Zero-Shot: Train Unet++ on All Rabbani and tested on all Hemoset",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.zero_shot.unet_plus_plus_full_rabbani_to_full_hemoset",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //num epochs
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Zero-Shot: Unet++ trained on Hemoset configs and tested on Rabbani configs",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.zero_shot.unet_plus_plus_hemoset_configs_to_rabbani_configs",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //num epochs
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Zero-Shot: Unet++ trained on Rabbani configs and tested on Hemoset configs",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.zero_shot.unet_plus_plus_rabbani_configs_to_hemoset_configs",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //num epochs
+            "justMyCode": true
+        },
+        {
             "name": "Python Debugger: Train U-Net on Hemoset",
             "type": "debugpy",
             "request": "launch",

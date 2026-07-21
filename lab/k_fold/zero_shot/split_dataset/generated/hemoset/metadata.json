@@ -1,0 +1,24 @@
+{
+    "dataset": "hemoset",
+    "random_seed": 42,
+    "number_of_folds": 5,
+    "selected_fold": 0,
+    "train_images": 730,
+    "validation_images": 232,
+    "train_groups": [
+        "pig1",
+        "pig2",
+        "pig4",
+        "pig5",
+        "pig6",
+        "pig7",
+        "pig9"
+    ],
+    "validation_groups": [
+        "pig10",
+        "pig11",
+        "pig3"
+    ],
+    "train_mean_blood_ratio": 0.05936631795804795,
+    "validation_mean_blood_ratio": 0.10270206144486352
+}
