@@ -2,6 +2,214 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger for All Config: Train U-Net18 on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.training.train_unet18_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Evaluate Unet18 on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.evaluation.evaluate_unet18_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Train U-Net34 on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.training.train_unet34_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Evaluate Unet34 on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.evaluation.evaluate_unet34_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Train U-Net18++ on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.training.train_unet_plus_plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Evaluate Unet18++ on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.evaluation.evaluate_unet_plus_plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Train Deeplabv3plus on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.training.train_deeplabv3plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config: Evaluate Deeplabv3plus on Hemoset for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.evaluation.evaluate_deeplabv3plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Train Unet18 on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.training.train_unet18_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Evaluate Unet18 on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.evaluation.evaluate_unet18_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Train Unet34 on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.training.train_unet34_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Evaluate Unet34 on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.evaluation.evaluate_unet34_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Train Unet++ on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.training.train_unet_plus_plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Evaluate Unet++ on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.evaluation.evaluate_unet_plus_plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Train Deeplabv3plus on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.training.train_deeplabv3plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": "${command:pickArgs}", //50 3 (50 epoch and the first 3 config to train)
+            "justMyCode": true
+        },
+        {
+            "name": "Python Debugger for All Config Rabbani: Evaluate Deeplabv3plus on Rabbani for All Config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "k_fold.rabbani.evaluation.evaluate_deeplabv3plus_all_config",
+            "cwd": "${workspaceFolder}/lab",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0" 
+            },
+            "args": "${command:pickArgs}", // first 3 config to evaluate
+            "justMyCode": true
+        },
+        {
             "name": "Python Debugger: Train U-Net on Hemoset",
             "type": "debugpy",
             "request": "launch",

@@ -1,0 +1,25 @@
+{
+    "configuration_id": 2,
+    "random_seed": 44,
+    "train_images": 525,
+    "validation_images": 125,
+    "test_images": 101,
+    "train_mean_blood_ratio": 0.033048881390040884,
+    "validation_mean_blood_ratio": 0.03170392227786781,
+    "test_mean_blood_ratio": 0.034738838037814905,
+    "train_blood_bins": {
+        "0": 175,
+        "1": 175,
+        "2": 175
+    },
+    "validation_blood_bins": {
+        "0": 41,
+        "1": 42,
+        "2": 42
+    },
+    "test_blood_bins": {
+        "0": 34,
+        "1": 33,
+        "2": 34
+    }
+}

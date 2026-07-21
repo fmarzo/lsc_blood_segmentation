@@ -1,0 +1,43 @@
+{
+    "configuration_index": 2,
+    "source_seed": 352,
+    "outer_fold": 2,
+    "stratification_score": 0.16301055474740386,
+    "train_pigs": [
+        "pig1",
+        "pig10",
+        "pig2",
+        "pig3",
+        "pig4",
+        "pig5"
+    ],
+    "validation_pigs": [
+        "pig6",
+        "pig9"
+    ],
+    "test_pigs": [
+        "pig11",
+        "pig7"
+    ],
+    "train_images": 685,
+    "validation_images": 193,
+    "test_images": 84,
+    "train_mean_blood_ratio": 0.0752311055352798,
+    "validation_mean_blood_ratio": 0.05762769524503455,
+    "test_mean_blood_ratio": 0.05367664155505952,
+    "train_bin_fractions": {
+        "bin_0_fraction": 0.3167883211678832,
+        "bin_1_fraction": 0.26277372262773724,
+        "bin_2_fraction": 0.42043795620437957
+    },
+    "validation_bin_fractions": {
+        "bin_0_fraction": 0.3471502590673575,
+        "bin_1_fraction": 0.5751295336787565,
+        "bin_2_fraction": 0.07772020725388601
+    },
+    "test_bin_fractions": {
+        "bin_0_fraction": 0.44047619047619047,
+        "bin_1_fraction": 0.34523809523809523,
+        "bin_2_fraction": 0.21428571428571427
+    }
+}
