@@ -340,30 +340,157 @@ image_recall 0.9038125276565552 +/- 0.16341683268547058
 # SEGDINO
 # ============================================================
 
-TESTED ON A SINGLE SPLIT NOT ALL CONFIG
+TRAINED AND TESTED ON 3 DIFFERNT SPLIT.
+IN RABBANI'S CASE, EACH OF THE 3 CONFIGURATION CORRESPONDS TO A DIFFERENT SHUFFLED VERSION OF THE DATASET
 
 --------------------------------------------------------------------------------------------------------------------
 
-|SEGDINO ON HEMOSET|
+|SEGDINO ON HEMOSET ON TRAIN SET = [PIG1, PIG3, PIG2, PIG9, PIG10], VALID SET = [PIG5, PIG7], TEST SET = [PIG3, PIG4, PIG11]| 
+
 
 ----- Per-image blood metrics -----
 IoU=0.5384  
 Dice=0.6760  
+HD95=95.32122972732934
 
 --------------------------------------------------------------------------------------------------------------------
 
-|SEGDINO ON RABBANI|
-
------ Per-image blood metrics -----
-IoU=0.5734
-Dice=0.7105  
-
---------------------------------------------------------------------------------------------------------------------
-
-|SEGDINO ON HEMOSET TRAINED ON TRAIN SET = [PIG1 to PIG7], VALID SET = [PIG9], TEST SET = [PIG10,PIG11]
+|SEGDINO ON HEMOSET TRAINED ON TRAIN SET = [PIG1, PIG2, PIG3, PIG5, PIG7], VALID SET = [PIG9, PIG4], TEST SET = [PIG10, PIG11, PIG6]|
 
 ----- Per-image blood metrics -----
 IoU=0.7654
 Dice=0.8667 
+HD95=33.16205560554891
 
 --------------------------------------------------------------------------------------------------------------------
+
+|SEGDINO ON HEMOSET TRAINED ON TRAIN SET = [PIG1, PIG2, PIG4, PIG5, PIG10], VALID SET = [PIG9, PIG11], TEST SET = [PIG3, PIG7, PIG6]|
+
+IoU=0.6512 
+Dice=0.7701   
+HD95=23.85374551252883
+
+--------------------------------------------------------------------------------------------------------------------
+
+|SEGDINO ON RABBANI CONF 0|
+
+----- Per-image blood metrics -----
+IoU=0.5734
+Dice=0.7105  
+HD95=91.8761967099539
+
+--------------------------------------------------------------------------------------------------------------------
+
+|SEGDINO ON RABBANI CONF 1|
+
+----- Per-image blood metrics -----
+
+IoU=0.6512
+Dice=0.7701 
+HD95=23.85374551252883
+
+--------------------------------------------------------------------------------------------------------------------
+
+|SEGDINO ON RABBANI CONF 2|
+
+----- Per-image blood metrics -----
+
+IoU=0.6172
+Dice=0.7413    
+HD95=78.33449281616211
+
+--------------------------------------------------------------------------------------------------------------------
+
+AVERAGE RESULTS ACROSS ALL THREE CONFIGURATIONS
+
+- SegDINO on HemoSet
+
+IoU: 0.6517 ± 0.0927
+Dice: 0.7709 ± 0.0779
+HD95: 50.7790 ± 31.7245
+
+- SegDINO on Rabbani
+
+IoU: 0.6139 ± 0.0318
+Dice: 0.7406 ± 0.0243
+HD95: 64.6881 ± 29.3988
+
+
+
+# ============================================================
+# BORDINO
+# ============================================================
+
+TRAINED AND TESTED ON 3 DIFFERNT SPLIT.
+IN RABBANI'S CASE, EACH OF THE 3 CONFIGURATION CORRESPONDS TO A DIFFERENT SHUFFLED VERSION OF THE DATASET
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON HEMOSET ON TRAIN SET = [PIG1, PIG3, PIG2, PIG9, PIG10], VALID SET = [PIG5, PIG7], TEST SET = [PIG3, PIG4, PIG11]| 
+
+
+----- Per-image blood metrics -----
+
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON HEMOSET TRAINED ON TRAIN SET = [PIG1, PIG2, PIG3, PIG5, PIG7], VALID SET = [PIG9, PIG4], TEST SET = [PIG10, PIG11, PIG6]|
+
+----- Per-image blood metrics -----
+IoU=0.8037 
+Dice=0.8906  
+HD95=35.57339108515592
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON HEMOSET TRAINED ON TRAIN SET = [PIG1, PIG2, PIG4, PIG5, PIG10], VALID SET = [PIG9, PIG11], TEST SET = [PIG3, PIG7, PIG6]|
+
+IoU=0.7181 
+Dice=0.8241    
+HD95=19.679488532020606
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON RABBANI CONF 0|
+
+----- Per-image blood metrics -----
+
+IoU=0.5754
+Dice=0.6966    
+HD95=68.74503124147894
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON RABBANI CONF 1|
+
+----- Per-image blood metrics -----
+
+IoU=0.6328
+Dice=0.7561   
+HD95=62.272267077207545
+
+--------------------------------------------------------------------------------------------------------------------
+
+|BORDINO ON RABBANI CONF 2|
+
+----- Per-image blood metrics -----
+
+IoU=0.6253
+Dice=0.7438   
+HD95=70.72358046913146
+
+--------------------------------------------------------------------------------------------------------------------
+
+AVERAGE RESULTS ACROSS ALL THREE CONFIGURATIONS
+
+- BORDINO on HemoSet
+
+IoU: 
+Dice: 
+HD95: 
+
+- BORDINO on Rabbani
+
+IoU: 
+Dice: 
+HD95: 
