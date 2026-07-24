@@ -431,6 +431,9 @@ IN RABBANI'S CASE, EACH OF THE 3 CONFIGURATION CORRESPONDS TO A DIFFERENT SHUFFL
 
 ----- Per-image blood metrics -----
 
+IoU=0.6760
+Dice=0.7836    
+HD95=31.00677594319737
 
 --------------------------------------------------------------------------------------------------------------------
 
@@ -485,12 +488,12 @@ AVERAGE RESULTS ACROSS ALL THREE CONFIGURATIONS
 
 - BORDINO on HemoSet
 
-IoU: 
-Dice: 
-HD95: 
+IoU: 0.7326 ± 0.0531
+Dice: 0.8328 ± 0.0441
+HD95: 28.7532 ± 6.6815
 
 - BORDINO on Rabbani
 
-IoU: 
-Dice: 
-HD95: 
+IoU: 0.6112 ± 0.0255
+Dice: 0.7322 ± 0.0256
+HD95: 67.2470 ± 3.6092
